@@ -1,0 +1,7 @@
+{
+    "controller" : "joystick",
+    "xrp_ipaddr" : "<fill in XRP IP Address>",
+    "team"       : 9999,
+    "socket_type": "TCP",
+    "debug"      : true
+}
