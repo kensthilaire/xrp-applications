@@ -1,7 +1,7 @@
 {
     "network_type": "STA",
     "ssid": "<fill in WIFI SSID here>",
-    "wifi_passcode": "<enter WIFI network password>",
+    "wifi_passcode": "<fill in WIFI network password>",
     "socket_type": "UDP",
     "listening_port": 9999
 }

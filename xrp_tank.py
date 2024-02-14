@@ -2,12 +2,6 @@ from XRPLib.defaults import *
 
 from xrp_control_base import XrpControl, read_config
 
-import json
-import network
-import socket
-import time
-import sys
-
 # Set of control events that could be sent from the driver station application
 # to the XRP. These events correspond to the Xbox Controller buttons and
 # axis controls.
@@ -39,7 +33,7 @@ control_events = {
 #
 # Main control class for the XRP application.
 #
-class MyXrp(XrpControl):
+class XrpTank(XrpControl):
     def __init__(self, config):
         super().__init__(config)
 
@@ -47,21 +41,12 @@ class MyXrp(XrpControl):
     # Function processes the Event command, interpreting the event type and 
     # invoking the appropriate robot control behavior specified by the event
     #
-    # OVERLOAD THIS FUNCTION IN A DERIVED CLASS TO MODIFY THE BEHAVIOR FOR
-    # YOUR XRP CONFIGURATION
-    #
     def process_event( self, event, args ):
         #print( 'Processing Event: %s, Args %s' % (event,str(args)))
         if event == 'LeftJoystickY':
-            # save off the current speed for reference
-            self.current_speed = float(args[0]) * -1.0
-            # update the drivetrain with the new speed and turn settings
-            drivetrain.arcade( self.current_speed, self.current_turn )
-        elif event == 'RightJoystickX':
-            # save off the current turning setting for reference
-            self.current_turn = float(args[0]) * -1.0
-            # update the drivetrain with the new speed and turn settings
-            drivetrain.arcade( self.current_speed, self.current_turn )
+            left_motor.set_effort( float(args[0]) * -1.0 )
+        elif event == 'RightJoystickY':
+            right_motor.set_effort( float(args[0]) * -1.0 )
         elif event == 'LeftBumper':
             # Open (lower) the arm when the left bumper is pressed
             if int(args[0]) == 1:
@@ -80,5 +65,5 @@ if __name__ == '__main__':
     config = read_config()
 
     # create the instance of the XRP controller and launch the run loop
-    controller = MyXrp( config ).run()
+    controller = XrpTank( config ).run()
 

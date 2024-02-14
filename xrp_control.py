@@ -65,7 +65,7 @@ class XrpControl():
         # initialize the network sockets that we'll use to read command data
         self.initialize_sockets()
 
-        # initialize certain variables used to control the robot
+        # initialize some variables used to control the robot
         self.current_speed = 0.0
         self.current_turn = 0.0
         self.partial_cmd_buffer = ''
