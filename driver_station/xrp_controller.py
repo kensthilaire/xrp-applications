@@ -68,6 +68,9 @@ class XrpController(Joystick):
                 except ConnectionRefusedError:
                     time.sleep(5)
                     logger.error( 'Error Connecting to %s:%d, Retrying' % (self.host,self.port) )
+                except OSError:
+                    time.sleep(5)
+                    logger.error( 'Error Connecting to %s:%d, Check if XRP is running' % (self.host,self.port) )
 
     def shutdown( self, *args ):
         logger.info( 'Shutdown complete.' )

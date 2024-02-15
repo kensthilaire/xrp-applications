@@ -11,7 +11,9 @@ In this release, only WIFI connectivity is supported. Bluetooth support will be 
 
 ## Files
 * config.json - JSON-formatted configuration file to set parameters for the application
+* config.py - Python module to read and parse the contents of the JSON configuration file
 * joystick.py - Python module to provide the interface to the gamepad controller
+* logger.py - Python module to set up the logging facility for the application
 * requirements.txt - Requirements file providing python package dependencies
 * xrp_controller.py - Main python module that provides the interface to the XRP robot over a WIFI network. Module supports UDP and TCP socket connections to the XRP.
 
