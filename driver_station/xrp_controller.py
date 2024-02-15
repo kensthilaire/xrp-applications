@@ -40,14 +40,14 @@ controls = {
 # and supports an Xbox Controller connected via USB to a Raspberry Pi
 #
 class XrpController(Joystick):
-    def __init__(self, path=None, socket_type='UDP', host='', team_number=9999):
+    def __init__(self, path=None, socket_type='UDP', host='', port=9999):
         super().__init__(path)
 
         signal.signal(signal.SIGINT, self.shutdown)
         signal.signal(signal.SIGTERM, self.shutdown)
 
         self.host = host
-        self.port = team_number
+        self.port = port
         self.socket = None
         self.socket_type = socket_type
 
@@ -121,8 +121,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--debug', action='store_true', dest='debug', default=False)
     parser.add_argument('-c', '--config', action='store', dest='config', default='config.json')
+    parser.add_argument('-p', '--port', action='store', dest='port', default=None)
     parser.add_argument('-s', '--socket', action='store', dest='socket_type', default=None)
-    parser.add_argument('-t', '--team', action='store', dest='team', default=None)
     parser.add_argument('-x', '--xrp', action='store', dest='xrp_ipaddr', default=None)
     options = parser.parse_args()
 
@@ -143,10 +143,10 @@ if __name__ == '__main__':
     else:
         xrp_ipaddr = config.get('xrp_ipaddr', 'localhost')
 
-    if options.team:
-        team = options.team
+    if options.port:
+        port = options.port
     else:
-        team = config.get('team', 9999)
+        port = config.get('port', 9999)
 
     if options.socket_type:
         socket_type = options.socket_type.upper()
@@ -155,7 +155,7 @@ if __name__ == '__main__':
 
     #
     # Create the XRP controller instance
-    controller = XrpController(socket_type=socket_type, host=xrp_ipaddr, team_number=team)
+    controller = XrpController(socket_type=socket_type, host=xrp_ipaddr, port=port)
 
     try:
         # invoke the controller type as configured. Initially, an Xbox Controller is supported,

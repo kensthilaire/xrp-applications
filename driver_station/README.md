@@ -40,14 +40,14 @@ The xrp_controller.py application supports command arguments that can be used to
     { 
         "controller" : "joystick",
         "xrp_ipaddr" : "<fill in XRP IP Address>", 
-        "team"       : 9999, 
+        "port"       : 9999, 
         "socket_type": "TCP", 
         "debug"      : true 
     }
 ### Configuration Parameter Descriptions 
  * controller - must be set to `joystick`. Future versions of the application will likely support additional controller types.
  * xrp_ipaddr - used to specify the IP address of the XRP. You may remove this parameter if you want to specify the XRP IP address at the command line
- * team - used to define the UDP/TCP port number for the socket connection between the control application and the XRP. This port number should be greater than 5000 and less than 65534.
+ * port - used to define the UDP/TCP port number for the socket connection between the control application and the XRP. This port number should be greater than 5000 and less than 65534.
  * socket_type - specifies the type of socket connection, either TCP or UDP
  * debug - enables debug logging for additional output, set to `false` to disable verbose logging
     
@@ -82,13 +82,13 @@ To list all the supported command line arguments, run the program with the `--he
 ```
 $ cd ~/GitHub/xrp-applications
 $ python xrp_controller --help
-usage: xrp_controller.py [-h] [-d] [-c CONFIG] [-s SOCKET_TYPE] [-t TEAM] [-x XRP_IPADDR]
+usage: xrp_controller.py [-h] [-d] [-c CONFIG] [-p PORT] [-s SOCKET_TYPE] [-x XRP_IPADDR]
 
 optional arguments:
   -h, --help            show this help message and exit
   -d, --debug
   -c CONFIG, --config CONFIG
+  -p PORT, --port PORT
   -s SOCKET_TYPE, --socket SOCKET_TYPE
-  -t TEAM, --team TEAM
   -x XRP_IPADDR, --xrp XRP_IPADDR
 ```
