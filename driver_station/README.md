@@ -3,7 +3,9 @@
 This directory contains a Python application that will run on a Raspberry Pi to control an XRP robot using a Xbox Gamepad controller.
 
 ## Compatibility
-This program has been tested on a Raspberry Pi 3b with a Logitech F310 Gamepad controller. Additional devices and gamepad controllers will be tested as time allows.
+This program has been tested on a Raspberry Pi 3b and a Raspberry Pi Zero W. When using a Pi Zero, you will likely need a USB hub to plug in the gamepad controller, keyboard, etc.
+
+This program has been tested with a Logitech F310 Gamepad controller. Additional devices and gamepad controllers will be tested over time.
 
 This program is written for Python version 3.
 ## Future Plans
