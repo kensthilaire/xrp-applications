@@ -78,16 +78,16 @@ class XrpControl():
     # Bluetooth support will be added in future support
     #
     def setup_network(self):
-        MAX_ATTEMPTS = 10
+        MAX_ATTEMPTS = 20
         num_attempts = 0
 
         if self.config['network_type'] == 'STA':
             # Station mode
             sta_if = network.WLAN(network.STA_IF)
             sta_if.active(True)
+            sta_if.connect(self.config['ssid'], self.config['wifi_passcode'])
 
             while num_attempts < MAX_ATTEMPTS:
-                sta_if.connect(self.config['ssid'], self.config['wifi_passcode'])
                 if sta_if.isconnected():
                     network_config = sta_if.ifconfig()
                     self.my_ipaddr = network_config[0]
@@ -98,7 +98,7 @@ class XrpControl():
                     # needing some time following powerup before it will successfully connect to the
                     # network
                     num_attempts += 1
-                    time.sleep(2)
+                    time.sleep(1)
 
         elif self.config['network_type'] == 'AP':
             # Access Point mode
@@ -117,7 +117,7 @@ class XrpControl():
                     # needing some time following powerup before it will successfully connect to the
                     # network
                     num_attempts += 1
-                    time.sleep(2)
+                    time.sleep(1)
         else:
             print( 'Unsupported Network Mode Requested: %s' % self.config['network_type'] )
 
