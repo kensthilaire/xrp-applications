@@ -1,7 +1,10 @@
 
 from evdev import InputDevice, categorize, ecodes, KeyEvent, list_devices
 
+import argparse
 import logging
+import sys
+
 from logger import logger
 
 class Joystick:
@@ -86,8 +89,25 @@ class Joystick:
             else:
                 logger.info( 'Unknown Event Type: %d, Code: %d, Value: %f' % (event.type, event.code, event.value) )
 
+def print_devices():
+    print( 'Connected Devices:' ) 
+    devices = [InputDevice(path) for path in list_devices()]
+    for device in devices:
+        print( '\t%s' % str(device) )
+
 if __name__ == '__main__':
     logger.setLevel(logging.DEBUG)
+
+    #
+    # parse out the command arguments
+    #
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-l', '--list', action='store_true', dest='list_devices', default=False)
+    options = parser.parse_args()
+
+    if options.list_devices:
+        print_devices()
+        sys.exit(0)
 
     joystick = Joystick()
     try:
