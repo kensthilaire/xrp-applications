@@ -59,9 +59,14 @@ class XrpControl():
         # save the configuration within this object
         self.config = config
         
+        # blink the LED to show that we are initializing the network
         board.led_blink(2)
+
         # set up the network based on the specified configuration
         self.setup_network()
+
+        # turn the LED off now that the network is initialized, we are
+        # good to go connecting to the XRP
         board.led_off()
         
         # initialize the network sockets that we'll use to read command data
