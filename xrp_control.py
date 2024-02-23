@@ -59,9 +59,11 @@ class XrpControl():
         # save the configuration within this object
         self.config = config
         
+        board.led_blink(2)
         # set up the network based on the specified configuration
         self.setup_network()
-
+        board.led_off()
+        
         # initialize the network sockets that we'll use to read command data
         self.initialize_sockets()
 
@@ -181,6 +183,7 @@ class XrpControl():
         return commands
 
     def read_tcp_commands(self):
+        commands = []
         try:
             if not self.connection:
                 self.connection, self.client_address = self.socket.accept()
@@ -191,15 +194,22 @@ class XrpControl():
             #print( 'Received: ', str(data) )
 
             decoded_data = self.partial_cmd_buffer + data.decode('utf-8')
+            
+            if decoded_data:
+                print( 'Decoded Received: ', decoded_data )
 
-            # split the decoded data into separate commands delimited by a newline
-            commands = decoded_data.split('\n')
+                # split the decoded data into separate commands delimited by a newline
+                commands = decoded_data.split('\n')
 
-            # for TCP connections, it is possible that the received data may contain a partial
-            # command, which will be the last item in the commands list. We'll store that last
-            # item as the partial command so that we can attach the next received data to the
-            # partial command string.
-            self.partial_cmd_buffer = commands.pop()
+                # for TCP connections, it is possible that the received data may contain a partial
+                # command, which will be the last item in the commands list. We'll store that last
+                # item as the partial command so that we can attach the next received data to the
+                # partial command string.
+                self.partial_cmd_buffer = commands.pop()
+            else:
+                print( 'Client connection error, closing socket')
+                self.connection.close()
+                self.connection = None
         except OSError:
             commands = ['ReadTimeout']
         return commands
