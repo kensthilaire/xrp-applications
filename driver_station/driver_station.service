@@ -1,0 +1,11 @@
+[Unit]
+Description=XRP Driver Station Service
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/GitHub/xrp-applications/driver_station
+ExecStart=/home/pi/Envs/xrp-controller/bin/python /home/pi/GitHub/xrp-applications/driver_station/xrp_controller.py
+
+[Install]
+WantedBy=multi-user.target
+
