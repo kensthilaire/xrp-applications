@@ -111,8 +111,11 @@ class XrpController(Joystick):
             try:
                 decoded_event = self.decode_event( event )
                 self.send_event( decoded_event )
+            except ConnectionResetError:
+                logger.error( 'Server Connection Error from %s:%d, Restablishing connection' % (self.host,self.port) )
+                self.initialize_client_socket()
             except BrokenPipeError:
-                logger.error( 'Client Connection Lost to %s:%d, Retrying' % (self.host,self.port) )
+                logger.error( 'Client Connection Lost to %s:%d, Restablishing connection' % (self.host,self.port) )
                 self.initialize_client_socket()
 
 
