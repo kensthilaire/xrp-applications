@@ -196,12 +196,9 @@ class XrpControl():
                 print( 'Connection accepted from %s' % str(self.client_address))
 
             data=self.connection.recv(1024)
-            #print( 'Received: ', str(data) )
-
             decoded_data = self.partial_cmd_buffer + data.decode('utf-8')
-            
             if decoded_data:
-                print( 'Decoded Received: ', decoded_data )
+                #print( 'Received: ', decoded_data )
 
                 # split the decoded data into separate commands delimited by a newline
                 commands = decoded_data.split('\n')
