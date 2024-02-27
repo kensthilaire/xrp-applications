@@ -4,6 +4,7 @@ from evdev import InputDevice, categorize, ecodes, KeyEvent, list_devices
 import argparse
 import logging
 import sys
+import time
 
 from logger import logger
 
@@ -44,15 +45,19 @@ class Joystick:
     def __init__(self, path=None):
         self.gamepad = None
 
-        if path:
-            self.gamepad = InputDevice(path)
-        else:
-            devices = [InputDevice(path) for path in list_devices()]
-            for device in devices:
-                if device.name in self.SUPPORTED_DEVICES:
-                    logger.info( device )
-                    self.gamepad = InputDevice(device.path)
-                    break
+        while not self.gamepad:
+            if path:
+                self.gamepad = InputDevice(path)
+            else:
+                devices = [InputDevice(path) for path in list_devices()]
+                for device in devices:
+                    if device.name in self.SUPPORTED_DEVICES:
+                        logger.info( 'Gamepad Detected - %s' % str(device) )
+                        self.gamepad = InputDevice(device.path)
+                        break
+            if not self.gamepad:
+                logger.error( 'No Gamepad Controller Detected, retrying' )
+                time.sleep(2)
 
     def decode_event(self, event):
         decoded_event = { 'type': 'UNKNOWN', 'name': '', 'value': event.value }
