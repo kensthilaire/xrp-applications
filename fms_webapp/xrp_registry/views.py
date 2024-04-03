@@ -8,12 +8,27 @@ from django.views.decorators.csrf import csrf_exempt
 
 from .models import Device
 from .serializers import DeviceSerializer
-from .utils import add_or_update_device, delete_device
+from .utils import add_or_update_device, update_device, delete_device
 
 class DeviceViewSet(viewsets.ModelViewSet):
     """
     API endpoint that allows devices to be viewed or edited.
     """
+    def get_queryset(self):
+        queryset = Device.objects.all()
+        id = self.request.query_params.get('id', None)
+        if id is not None:
+            queryset = queryset.filter(hardware_id=id)
+        device_type = self.request.query_params.get('type', None)
+        if device_type is not None:
+            queryset = queryset.filter(type=device_type)
+        alliance = self.request.query_params.get('alliance', None)
+        if alliance is not None:
+            if alliance.lower() != 'any':
+                queryset = queryset.filter(alliance=alliance)
+
+        return queryset
+
     queryset = Device.objects.all()
     serializer_class = DeviceSerializer
 
@@ -25,6 +40,14 @@ def register(request):
         return HttpResponse(ret_val)
     elif request.method == 'DELETE':
         ret_val = delete_device(request.data)
+        return HttpResponse(ret_val)
+    return HttpResponse("Failed")
+
+@csrf_exempt
+@api_view(http_method_names=['POST'])
+def status(request):
+    if request.method == 'POST':
+        ret_val = update_device( request.data )
         return HttpResponse(ret_val)
     return HttpResponse("Failed")
 
