@@ -1,6 +1,6 @@
 from XRPLib.defaults import *
 
-from xrp_control_base import XrpControl, read_config
+from xrp_control import XrpControl, read_config
 
 # Set of control events that could be sent from the driver station application
 # to the XRP. These events correspond to the Xbox Controller buttons and
@@ -8,7 +8,7 @@ from xrp_control_base import XrpControl, read_config
 #
 # At present, this dictionary is included to define all the expected events. 
 # Additional functionality will be added to make more use of the dictionary.
-#
+# 
 control_events = {
     'ButtonA':        { 'type': 'BUTTON', 'enabled': True },
     'ButtonB':        { 'type': 'BUTTON', 'enabled': True  },
@@ -35,35 +35,28 @@ control_events = {
 #
 class XrpArcade(XrpControl):
     def __init__(self, config):
-        super().__init__(config)
-
+        super().__init__(config, application='XRP_BasePlusTriggers')
+        
     #
     # Function processes the Event command, interpreting the event type and 
     # invoking the appropriate robot control behavior specified by the event
     #
     def process_event( self, event, args ):
         #print( 'Processing Event: %s, Args %s' % (event,str(args)))
-        if event == 'LeftJoystickY':
-            # save off the current speed for reference
-            self.current_speed = float(args[0]) * -1.0
-            # update the drivetrain with the new speed and turn settings
-            drivetrain.arcade( self.current_speed, self.current_turn )
-        elif event == 'RightJoystickX':
-            # save off the current turning setting for reference
-            self.current_turn = float(args[0]) * -1.0
-            # update the drivetrain with the new speed and turn settings
-            drivetrain.arcade( self.current_speed, self.current_turn )
-        elif event == 'LeftBumper':
-            # Open (lower) the arm when the left bumper is pressed
-            if int(args[0]) == 1:
-                servo_one.set_angle( 0 )
-        elif event == 'RightBumper':
-            # Close (raise) the arm when the right bumper is pressed
-            if int(args[0]) == 1:
-                servo_one.set_angle( 180 )
+        if event == 'LeftTrigger':
+            # Lower the arm angle based on the trigger input
+            angle = self.max_angle - int(( self.max_angle * float(args[0]) ))
+            if angle < self.get_servo_angle():
+                self.set_servo_angle( angle )
+        elif event == 'RightTrigger':
+            # Raise the arm angle based on the trigger input
+            angle = int(( self.max_angle * float(args[0]) ))
+            if angle > self.get_servo_angle():
+                self.set_servo_angle( angle )
         else:
             # add more event handling operations here...
-            pass
+            super().process_event(event,args)
+
 
 if __name__ == '__main__':
 

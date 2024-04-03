@@ -1,6 +1,6 @@
 from XRPLib.defaults import *
 
-from xrp_control_base import XrpControl, read_config
+from xrp_control import XrpControl, read_config
 
 # Set of control events that could be sent from the driver station application
 # to the XRP. These events correspond to the Xbox Controller buttons and
@@ -35,7 +35,8 @@ control_events = {
 #
 class XrpTank(XrpControl):
     def __init__(self, config):
-        super().__init__(config)
+        super().__init__(config, application='XRP_Tank')
+
 
     #
     # Function processes the Event command, interpreting the event type and 
@@ -47,17 +48,9 @@ class XrpTank(XrpControl):
             left_motor.set_effort( float(args[0]) * -1.0 )
         elif event == 'RightJoystickY':
             right_motor.set_effort( float(args[0]) * -1.0 )
-        elif event == 'LeftBumper':
-            # Open (lower) the arm when the left bumper is pressed
-            if int(args[0]) == 1:
-                servo_one.set_angle( 0 )
-        elif event == 'RightBumper':
-            # Close (raise) the arm when the right bumper is pressed
-            if int(args[0]) == 1:
-                servo_one.set_angle( 180 )
         else:
             # add more event handling operations here...
-            pass
+            super().process_event(event, args)
 
 if __name__ == '__main__':
 
