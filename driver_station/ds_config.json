@@ -1,0 +1,16 @@
+{
+    "uuid"       : "393f1e55-fc17-4a62-9eb4-7a1c801aebc9",
+    "name"       : "XRP-DS1",
+    "fms" : [
+        {
+            "url_base": "http://192.168.1.150:8000",
+            "enabled" : false
+        },
+        {
+            "url_base": "http://192.168.1.129:8000",
+            "enabled" : true
+        }
+    ],
+
+    "debug"      : false
+}

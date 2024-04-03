@@ -5,11 +5,14 @@ import logging
 import socket
 import signal
 import sys
+import threading
 import time
 
 from config import read_config
 
 from logger import logger
+
+import joystick
 from joystick import Joystick
 
 # dictionary of all the xbox controller buttons and controls. By enabling or disabling
@@ -46,12 +49,12 @@ class XrpController(Joystick):
         signal.signal(signal.SIGINT, self.shutdown)
         signal.signal(signal.SIGTERM, self.shutdown)
 
+        self.shutdown = False
+
         self.host = host
         self.port = port
         self.socket = None
         self.socket_type = socket_type
-
-        self.initialize_client_socket()
 
     def initialize_client_socket(self):
         # create a socket based on the requested type
@@ -59,7 +62,7 @@ class XrpController(Joystick):
         if self.socket_type == 'UDP':
             self.socket = socket.socket( socket.AF_INET, socket.SOCK_DGRAM )
         elif self.socket_type == 'TCP':
-            while True:
+            while not self.shutdown:
                 try:
                     self.socket = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
                     self.socket.connect( (self.host,self.port) )
@@ -107,16 +110,26 @@ class XrpController(Joystick):
             pass
 
     def joystick_control(self):
-        for event in self.gamepad.read_loop():
-            try:
-                decoded_event = self.decode_event( event )
-                self.send_event( decoded_event )
-            except ConnectionResetError:
-                logger.error( 'Server Connection Error from %s:%d, Restablishing connection' % (self.host,self.port) )
-                self.initialize_client_socket()
-            except BrokenPipeError:
-                logger.error( 'Client Connection Lost to %s:%d, Restablishing connection' % (self.host,self.port) )
-                self.initialize_client_socket()
+        try:
+            for event in self.gamepad.read_loop():
+                try:
+                    decoded_event = self.decode_event( event )
+                    self.send_event( decoded_event )
+                except ConnectionResetError:
+                    logger.error( 'Server Connection Error from %s:%d, Restablishing connection' % (self.host,self.port) )
+                    self.initialize_client_socket()
+                except BrokenPipeError:
+                    logger.error( 'Client Connection Lost to %s:%d, Restablishing connection' % (self.host,self.port) )
+                    self.initialize_client_socket()
+        except OSError:
+            logger.error( 'Controller Error Detected, terminating joystick processing' )
+
+#
+# Simple service routine that invokes the controller method that runs the joystick control loop
+#
+def controller_service( controller ):
+    controller.initialize_client_socket()
+    controller.joystick_control()
 
 
 if __name__ == '__main__':
@@ -136,42 +149,47 @@ if __name__ == '__main__':
     # Read the config file
     config = read_config( filename=options.config )
 
+    logger.debug( 'Setting Log Level:\n' )
     # set the log level to debug if requested
     if options.debug or config.get('debug',False) == True:
         logger.setLevel(logging.DEBUG)
     else:
         logger.setLevel(logging.INFO)
 
-    # retrieve the XRP IP server address and port number (team) from config or
-    # from the command line
-    if options.xrp_ipaddr:
-        xrp_ipaddr = options.xrp_ipaddr
-    else:
-        xrp_ipaddr = config.get('xrp_ipaddr', 'localhost')
-
+    # override the port setting if specified at the command line
     if options.port:
         port = options.port
     else:
         port = config.get('port', 9999)
 
+    # override the socket type setting if specified at the command line
     if options.socket_type:
         socket_type = options.socket_type.upper()
     else:
         socket_type = config.get('socket_type', 'UDP').upper()
 
+    # retrieve the set of devices configured for this controller instance
+    xrp_devices = config.get('devices', list())
+
     #
-    # Create the XRP controller instance
-    controller = XrpController(socket_type=socket_type, host=xrp_ipaddr, port=port)
+    # retrieve the list of joystick devices that are connected to this controller and 
+    # create an XRP controller instance to assotiate with the joysticks.
+    controller_threads = list()
+    connected_joysticks = joystick.get_joysticks()
+    for index, joystick in enumerate(connected_joysticks):
+        if index < len(xrp_devices):
+            xrp_config = xrp_devices[index]
+            xrp_ipaddr = xrp_config.get('ipaddr', 'localhost')
 
-    try:
-        # invoke the controller type as configured. Initially, an Xbox Controller is supported,
-        # but other controller methods will be added over time
-        if config['controller'] == 'joystick':
-            controller.joystick_control()
-        else:
-            logger.error( 'ERROR: No Controller Type Specified' )
-            sys.exit(1)
+            # Create the XRP controller instance
+            controller = XrpController(path=joystick.path, socket_type=socket_type, host=xrp_ipaddr, port=port)
+            controller_thread = threading.Thread( target=controller_service, args=(controller,), daemon=True )
+            controller_threads.append( controller_thread )
+            controller_thread.start()
 
-    except KeyboardInterrupt:
-        controller.shutdown();
-
+    for index, thread in enumerate(controller_threads):
+        try:
+            thread.join()
+        except KeyboardInterrupt:
+            break
+ 
