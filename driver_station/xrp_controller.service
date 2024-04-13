@@ -4,7 +4,7 @@ Description=XRP Controller Application Service
 [Service]
 User=pi
 WorkingDirectory=/home/pi/GitHub/xrp-applications/driver_station
-ExecStart=/home/pi/Envs/xrp-controller/bin/python /home/pi/GitHub/xrp-applications/driver_station/xrp_controller.py -c my_config.json
+ExecStart=/home/pi/Envs/xrp-control/bin/python /home/pi/GitHub/xrp-applications/driver_station/xrp_controller.py -c my_config.json
 
 [Install]
 WantedBy=multi-user.target
