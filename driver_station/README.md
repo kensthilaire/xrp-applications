@@ -62,16 +62,18 @@ The xrp_controller.py application supports command arguments that can be used to
 
 The devices array allows for the specification of a set of XRPs with known IP addresses. Each XRP IP address and port can be individually configured.
 
-**NOTE: Be sure that the config.json file is properly formatted JSON.
+**NOTE: Be sure that the config.json file is properly formatted JSON.**
 
-**TIP: Copy the default config.json file to a separate file (e.g. my_config.json), edit the file for the specific configuration and specify this JSON configuration file when invoking the control application (e.g. python xrp_controller.py -c my_config.json).
+**TIP: Copy the default config.json file to a separate file (e.g. my\_config.json), edit the file for the specific configuration and specify this JSON configuration file when invoking the control application (e.g. python xrp\_controller.py -c my\_config.json).**
 
 ### Configuration Parameter Descriptions 
+ * name - descriptive short name for the control application and the XRP devices.
  * controller - must be set to `joystick`. Future versions of the application will likely support additional controller types.
- * xrp_ipaddr - used to specify the IP address of the XRP. You may remove this parameter if you want to specify the XRP IP address at the command line
- * port - used to define the UDP/TCP port number for the socket connection between the control application and the XRP. This port number should be greater than 5000 and less than 65534.
- * socket_type - specifies the type of socket connection, either TCP or UDP
- * debug - enables debug logging for additional output, set to `false` to disable verbose logging
+ * devices - JSON array used to specify one or more XRP devices. You may omit the devices array if you specify the XRP devices via command line arguments.
+ * ipaddr - used to specify the IP address of the XRP devices.
+ * port - used to define the UDP/TCP port number for the socket connection between the control application and the XRP. This port number should be greater than 5000 and less than 65534. Default is port 9999.
+ * socket_type - specifies the type of socket connection, either TCP or UDP.
+ * debug - enables debug logging for additional output, set to `false` to disable verbose logging.
     
 ## Running the XRP Controller
 ### Running The Program With Configuration File Settings
@@ -114,3 +116,16 @@ optional arguments:
   -s SOCKET_TYPE, --socket SOCKET_TYPE
   -x XRP_IPADDR, --xrp XRP_IPADDR
 ```
+
+Examples:
+
+```
+Specifying an alternate configuration file:
+
+$ python xrp_controller -c my_config.json
+
+Specifying one or more XRP devices:
+
+$ python xrp_controller -x 192.168.1.130,192.168.1.140
+```
+
