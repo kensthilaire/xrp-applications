@@ -8,7 +8,7 @@ from xrp_control import XrpControl, read_config
 #
 # At present, this dictionary is included to define all the expected events. 
 # Additional functionality will be added to make more use of the dictionary.
-# 
+#
 control_events = {
     'ButtonA':        { 'type': 'BUTTON', 'enabled': True },
     'ButtonB':        { 'type': 'BUTTON', 'enabled': True  },

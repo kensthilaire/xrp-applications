@@ -137,48 +137,64 @@ class XrpControl():
     # Bluetooth support will be added in future support
     #
     def setup_network(self):
-        MAX_ATTEMPTS = 20
-        num_attempts = 0
-        network_config = self.config['network']
-        if network_config['network_type'] == 'STA':
-            # Station mode
-            sta_if = network.WLAN(network.STA_IF)
-            sta_if.active(True)
-            sta_if.connect(network_config['ssid'], network_config['wifi_passcode'])
+        MAX_ATTEMPTS = 10
+        networks = self.config['networks']
+        for network_config in networks:
+            num_attempts = 0
+            if network_config['enabled']:
+                if network_config['network_type'] == 'STA':
+                    # Station mode
+                    print( 'Connecting to WIFI network: %s' % network_config['ssid'])
+                    sta_if = network.WLAN(network.STA_IF)
+                    sta_if.active(True)
+                    sta_if.connect(network_config['ssid'], network_config['wifi_passcode'])
 
-            while num_attempts < MAX_ATTEMPTS:
-                if sta_if.isconnected():
-                    network_config = sta_if.ifconfig()
-                    self.my_ipaddr = network_config[0]
-                    print( 'Connected to WIFI, IP Address: %s' % (self.my_ipaddr) )
-                    break
+                    while num_attempts < MAX_ATTEMPTS:
+                        if sta_if.isconnected():
+                            network_config = sta_if.ifconfig()
+                            self.my_ipaddr = network_config[0]
+                            print( 'Connected to WIFI, IP Address: %s' % (self.my_ipaddr) )
+                            break
+                        else:
+                            # increment the number of attempts, then pause and retry. We have seen the XRP 
+                            # needing some time following powerup before it will successfully connect to the
+                            # network
+                            num_attempts += 1
+                            time.sleep(1)
+                            
+                    if sta_if.isconnected():
+                        break
+                    else:
+                        print( 'Error connecting to WIFI network: %s' % network_config['ssid'] )
+
+
+                elif network_config['network_type'] == 'AP':
+                    # Access Point mode
+                    print( 'Setting up access point: %s' % network_config['ssid'])
+                    ap_if = network.WLAN(network.AP_IF)
+                    ap_if.config(essid=network_config['ssid'], password=network_config['wifi_passcode'])
+                    ap_if.active(True)
+
+                    while num_attempts < MAX_ATTEMPTS:
+                        if ap_if.active():
+                            network_config = ap_if.ifconfig()
+                            self.my_ipaddr = network_config[0]
+                            print( 'WIFI Access Point Activated, IP Address: %s' % (self.my_ipaddr) )
+                            break
+                        else:
+                            # increment the number of attempts, then pause and retry. We have seen the XRP 
+                            # needing some time following powerup before it will successfully connect to the
+                            # network
+                            num_attempts += 1
+                            time.sleep(1)
+                            
+                    if ap_if.active():
+                        break
+                    else:
+                        print( 'Error setting up access point: %s' % network_config['ssid'])
+
                 else:
-                    # increment the number of attempts, then pause and retry. We have seen the XRP 
-                    # needing some time following powerup before it will successfully connect to the
-                    # network
-                    num_attempts += 1
-                    time.sleep(1)
-
-        elif network_config['network_type'] == 'AP':
-            # Access Point mode
-            ap_if = network.WLAN(network.AP_IF)
-            ap_if.config(essid=network_config['ssid'], password=network_config['wifi_passcode'])
-            ap_if.active(True)
-
-            while num_attempts < MAX_ATTEMPTS:
-                if ap_if.active():
-                    network_config = ap_if.ifconfig()
-                    self.my_ipaddr = network_config[0]
-                    print( 'WIFI Access Point Activated, IP Address: %s' % (self.my_ipaddr) )
-                    break
-                else:
-                    # increment the number of attempts, then pause and retry. We have seen the XRP 
-                    # needing some time following powerup before it will successfully connect to the
-                    # network
-                    num_attempts += 1
-                    time.sleep(1)
-        else:
-            print( 'Unsupported Network Mode Requested: %s' % network_config['network_type'] )
+                    print( 'Unsupported Network Mode Requested: %s' % network_config['network_type'] )
 
         if num_attempts >= MAX_ATTEMPTS:
             print( 'Unable to set up the network for %s mode' % network_config['network_type'] )
@@ -358,7 +374,7 @@ class XrpControl():
         
 
     def register(self, url_base):
-        print( 'Registering Device With FMS...')
+        print( 'Registering Device With FMS: %s' % url_base )
         self.registered = False
         reg_data = {}
         reg_data['hardware_id'] = self.id
@@ -381,7 +397,7 @@ class XrpControl():
             else:
                 print( 'Error Registering With FMS: %d' % resp.status_code )
         except OSError:
-            print( 'Error Connecting To FMS')
+            print( 'Error Connecting To FMS: %s' % url_base )
         return self.registered
         
     def send_status(self):
@@ -405,13 +421,6 @@ class XrpControl():
             except OSError:
                 print( 'Error Connecting To FMS')
 
-'''
-def send_status(controller):
-        while not controller.shutdown:
-            #print( 'Sending Status: %s' % controller.status )
-            print( 'Sending Status')
-            time.sleep( controller.config['fms'].get('interval', 10) )
-'''
 
 if __name__ == '__main__':
 
