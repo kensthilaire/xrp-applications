@@ -1,7 +1,19 @@
 {
+    "name"       : "XRP-CTRL",
     "controller" : "joystick",
-    "xrp_ipaddr" : "<fill in XRP IP Address>",
-    "port"       : 9999,
     "socket_type": "TCP",
-    "debug"      : true
+    "devices"    : [
+        {
+            "name"   : "XRP-1",
+            "ipaddr" : "<XRP IP address>",
+            "port"   : 9999
+        },
+        {
+            "name"   : "XRP-2",
+            "ipaddr" : "<another XRP IP address>",
+            "port"   : 9999
+        }
+    ],
+
+    "debug"      : false
 }
