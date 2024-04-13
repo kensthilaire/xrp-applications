@@ -46,9 +46,6 @@ class XrpController(Joystick):
     def __init__(self, path=None, socket_type='UDP', host='', port=9999):
         super().__init__(path)
 
-        signal.signal(signal.SIGINT, self.shutdown)
-        signal.signal(signal.SIGTERM, self.shutdown)
-
         self.shutdown = False
 
         self.host = host
@@ -76,9 +73,12 @@ class XrpController(Joystick):
                     logger.error( 'Error Connecting to %s:%d, Check if XRP is running' % (self.host,self.port) )
 
     def shutdown( self, *args ):
-        logger.info( 'Shutdown complete.' )
+        self.terminate_read_loop = True
+        time.sleep(2)
 
-        sys.exit(0)
+        self.shutdown = True
+        logger.info( 'Shutdown complete.' )
+        #sys.exit(0)
 
     def send_event( self, event ):
         command = None
@@ -121,6 +121,10 @@ class XrpController(Joystick):
                 except BrokenPipeError:
                     logger.error( 'Client Connection Lost to %s:%d, Restablishing connection' % (self.host,self.port) )
                     self.initialize_client_socket()
+
+                if self.terminate_read_loop:
+                    logger.info( 'Terminating Controller Read Loop' )
+                    break
         except OSError:
             logger.error( 'Controller Error Detected, terminating joystick processing' )
 
@@ -131,8 +135,24 @@ def controller_service( controller ):
     controller.initialize_client_socket()
     controller.joystick_control()
 
+#
+#
+#
+def shutdown_handler(signum, frame):
+    shutdown_all()
+    sys.exit(0)
+
+def shutdown_all():
+    logger.info( 'Terminating controller service threads' )
+    for controller in xrp_controllers:
+        controller.terminate_read_loop = True
+    time.sleep(2)
 
 if __name__ == '__main__':
+
+    # install signal handlers to handle a shutdown request
+    signal.signal(signal.SIGINT, shutdown_handler)
+    signal.signal(signal.SIGTERM, shutdown_handler)
 
     #
     # parse out the command arguments
@@ -181,7 +201,7 @@ if __name__ == '__main__':
     #
     # retrieve the list of joystick devices that are connected to this controller and 
     # create an XRP controller instance to assotiate with the joysticks.
-    controller_threads = list()
+    xrp_controllers = list()
     connected_joysticks = joystick.get_joysticks()
     for index, joystick in enumerate(connected_joysticks):
         if index < len(xrp_devices):
@@ -192,12 +212,15 @@ if __name__ == '__main__':
             # Create the XRP controller instance
             controller = XrpController(path=joystick.path, socket_type=socket_type, host=xrp_ipaddr, port=xrp_port)
             controller_thread = threading.Thread( target=controller_service, args=(controller,), daemon=True )
-            controller_threads.append( controller_thread )
+            xrp_controllers.append( controller )
             controller_thread.start()
 
-    for index, thread in enumerate(controller_threads):
+    while True:
         try:
-            thread.join()
+            time.sleep(1)
         except KeyboardInterrupt:
-            break
- 
+            logger.info( 'Initiating shutdown from keyboard' )
+            shutdown_all()
+        
+    print( 'XRP Control application terminated.' )
+
