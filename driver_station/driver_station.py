@@ -43,6 +43,7 @@ class DriverStation():
     def setup_schedule(self):
         self.scheduler.every(30).seconds.do(self.send_status)
         self.scheduler.every(5).seconds.do(self.scan_controllers)
+        self.scheduler.every(10).seconds.do(self.connect_devices)
 
     def register(self, url_base):
         if self.fms_registered:
@@ -96,7 +97,6 @@ class DriverStation():
         except OSError:
             logger.error( 'Error Connecting To FMS')
 
-
     def get_my_config(self):
         my_config = None
         logger.info( 'Retrieving my configuration stored on the FMS...')
@@ -126,6 +126,8 @@ class DriverStation():
             resp = requests.get(url)
             if resp.status_code == 200:
                 devices = resp.json()
+                for device in devices:
+                    logger.info( 'Device: %s' % str(device) )
             else:
                 logger.error( 'Error Retrieving Devices From FMS: %d' % resp.status_code )
         except OSError:
@@ -135,19 +137,22 @@ class DriverStation():
         
     def scan_controllers(self):
         new_controllers = joystick.get_joysticks()
-
         if len(new_controllers) == len(self.controllers):
             # no change detected
             pass
         elif len(new_controllers) < len(self.controllers):
+            logger.info( 'Controller removal detected' )
             # we now have less controllers plugged in
             pass
         else:
+            logger.info( 'New controller plugged in' )
             # we have a new controller, so let's find the new one and connect it up to any unconnected device
             for new_controller in new_controllers:
+                logger.info( 'Controller: %s' % str( new_controller ) )
                 found = False
                 for curr_controller in self.controllers:
                     if new_controller.path == curr_controller.path:
+                        logger.info( 'Controller: %s' % str( new_controller ) )
                         found = True
                         break
                 if not found:
@@ -156,10 +161,11 @@ class DriverStation():
         self.controllers = new_controllers
 
     def connect_device(self, controller): 
-
         logger.debug( 'Controller: %s' % controller )
         for device in self.devices:
             if not device.get('controller', None):
+                logger.info( 'Connecting %s at address: %s:%s to controller: %s' % \
+                              (device['name'],device['ip_address'],device['port'],controller) )
                 app = XrpController(path=controller.path, socket_type=device['protocol'], host=device['ip_address'], port=int(device['port']))
                 device['controller'] = controller.path
                 app_thread = threading.Thread( target=ds_controller_service, args=(device,app,), daemon=True )
@@ -168,11 +174,12 @@ class DriverStation():
                 break
 
     def connect_devices(self): 
-
         for controller in self.controllers:
             logger.debug( 'Controller: %s' % controller )
             for device in self.devices:
                 if not device.get('controller', None):
+                    logger.info( 'Connecting %s at address: %s:%s to controller: %s' % \
+                                  (device['name'],device['ip_address'],device['port'],controller) )
                     app = XrpController(path=controller.path, socket_type=device['protocol'], host=device['ip_address'], port=int(device['port']))
                     device['controller'] = controller.path
                     app_thread = threading.Thread( target=ds_controller_service, args=(device,app,), daemon=True )
