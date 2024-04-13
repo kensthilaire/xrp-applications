@@ -33,7 +33,7 @@ control_events = {
 #
 # Main control class for the XRP application.
 #
-class XrpArcade(XrpControl):
+class XrpServoTriggers(XrpControl):
     def __init__(self, config):
         super().__init__(config, application='XRP_BasePlusTriggers')
         
@@ -64,5 +64,5 @@ if __name__ == '__main__':
     config = read_config()
 
     # create the instance of the XRP controller and launch the run loop
-    controller = XrpArcade( config ).run()
+    controller = XrpServoTriggers( config ).run()
 

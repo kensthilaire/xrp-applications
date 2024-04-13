@@ -37,7 +37,6 @@ class XrpTank(XrpControl):
     def __init__(self, config):
         super().__init__(config, application='XRP_Tank')
 
-
     #
     # Function processes the Event command, interpreting the event type and 
     # invoking the appropriate robot control behavior specified by the event

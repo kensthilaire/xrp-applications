@@ -79,8 +79,9 @@ class XrpControl():
         self.id = get_id()
         print( 'XRP Id: %s' % self.id)
         
-        board.led_blink(2)
         # set up the network based on the specified configuration
+        # flash the LED on the pico to indicate that we're connecting to the network
+        board.led_blink(2)
         self.setup_network()
         board.led_off()
         
@@ -102,6 +103,8 @@ class XrpControl():
         # initialize the network sockets that we'll use to read command data
         self.initialize_sockets()
 
+        # if an FMS is configured, then attempt to register this device with the FMS
+        self.fms_configured = False
         fms_config = self.config.get('fms', None)
         if fms_config:
             for fms in fms_config:
@@ -109,8 +112,6 @@ class XrpControl():
                     self.fms_configured = True
                     if self.register(fms['url_base']) == True:
                         break
-        else:
-            self.fms_configured = False
 
     #
     # Utility function that will set the angle of the selected servo, saving
@@ -119,7 +120,7 @@ class XrpControl():
     def set_servo_angle( self, angle ):
         self.servos[self.curr_servo]['servo'].set_angle( angle )
         self.servos[self.curr_servo]['angle'] = angle
-    
+
     #
     # Utility function to retrieve the current angle position of the selected
     # servo
@@ -127,8 +128,6 @@ class XrpControl():
     def get_servo_angle( self ):
         return self.servos[self.curr_servo]['angle']
         
-
-
     #
     # Function will set up the network connection based on the 
     # configuration.
@@ -166,8 +165,6 @@ class XrpControl():
                         break
                     else:
                         print( 'Error connecting to WIFI network: %s' % network_config['ssid'] )
-
-
                 elif network_config['network_type'] == 'AP':
                     # Access Point mode
                     print( 'Setting up access point: %s' % network_config['ssid'])
@@ -192,7 +189,6 @@ class XrpControl():
                         break
                     else:
                         print( 'Error setting up access point: %s' % network_config['ssid'])
-
                 else:
                     print( 'Unsupported Network Mode Requested: %s' % network_config['network_type'] )
 
@@ -294,7 +290,6 @@ class XrpControl():
             commands = ['ReadTimeout']
         return commands
 
-    
     #
     # Function represents the main processing loop for the XRP controller. This function 
     # reads commands from the network interface and invokes the command procesing to 
@@ -322,7 +317,6 @@ class XrpControl():
                     self.status = 'Waiting For Command'
                 else:
                     print('Ignoring Unexpected Command Type: %s, Args: %s' % (tokens[0],str(tokens[1:])) )
-                    
 
     #
     # Function processes the Event command, interpreting the event type and 
@@ -371,8 +365,16 @@ class XrpControl():
         self.current_speed = 0.0
         self.current_turn = 0.0
         drivetrain.arcade( self.current_speed, self.current_turn )
-        
 
+    #
+    # Function to register this device with a configured FMS
+    #
+    # The FMS application can be used in a deployment configuration where you don't want to 
+    # have to explicitly configure the driver station with the IP addresses of all the XRPs. 
+    # With the FMS, the XRPs need only be configured with the FMS address. Each XRP will
+    # register with the FMS, providing their IP address, and the driver station application
+    # will learn the IP addresses of all connected XRPs from the FMS.
+    #
     def register(self, url_base):
         print( 'Registering Device With FMS: %s' % url_base )
         self.registered = False
@@ -400,6 +402,14 @@ class XrpControl():
             print( 'Error Connecting To FMS: %s' % url_base )
         return self.registered
         
+    # 
+    # Function to periodically send status to a configured FMS
+    #
+    # This function is called periodically from the main processing thread to send
+    # a simple status message to the FMS.
+    #
+    # This message will be expanded over time to convey more information to the FMS 
+    #
     def send_status(self):
         curr_time = time.time()
         if (curr_time-self.status_reported) > 30:
@@ -430,9 +440,5 @@ if __name__ == '__main__':
     # create the instance of the XRP controller and launch the run loop
     controller = XrpControl( config )
     if controller:
-        #print( 'Starting FMS Status Thread...')
-        #fms_thread = _thread.start_new_thread(send_status, (controller,))
-
         print( 'Starting Controller Main Loop...')
         controller.run()
-
