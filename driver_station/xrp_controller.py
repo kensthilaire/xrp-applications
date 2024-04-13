@@ -52,7 +52,7 @@ class XrpController(Joystick):
         self.shutdown = False
 
         self.host = host
-        self.port = port
+        self.port = int(port)
         self.socket = None
         self.socket_type = socket_type
 
