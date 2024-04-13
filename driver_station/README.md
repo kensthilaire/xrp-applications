@@ -62,9 +62,9 @@ The xrp_controller.py application supports command arguments that can be used to
 
 The devices array allows for the specification of a set of XRPs with known IP addresses. Each XRP IP address and port can be individually configured.
 
-**NOTE: Be sure that the config.json file is properly formatted JSON.
+**NOTE: Be sure that the config.json file is properly formatted JSON.**
 
-**TIP: Copy the default config.json file to a separate file (e.g. my_config.json), edit the file for the specific configuration and specify this JSON configuration file when invoking the control application (e.g. python xrp_controller.py -c my_config.json).
+**TIP: Copy the default config.json file to a separate file (e.g. my\_config.json), edit the file for the specific configuration and specify this JSON configuration file when invoking the control application (e.g. python xrp\_controller.py -c my\_config.json).**
 
 ### Configuration Parameter Descriptions 
  * controller - must be set to `joystick`. Future versions of the application will likely support additional controller types.
@@ -114,3 +114,16 @@ optional arguments:
   -s SOCKET_TYPE, --socket SOCKET_TYPE
   -x XRP_IPADDR, --xrp XRP_IPADDR
 ```
+
+Examples:
+
+```
+Specifying an alternate configuration file:
+
+$ python xrp_controller -c my_config.json
+
+Specifying one or more XRP devices:
+
+$ python xrp_controller -x 192.168.1.130,192.168.1.140
+```
+
