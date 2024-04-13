@@ -4,14 +4,16 @@ from evdev import InputDevice, categorize, ecodes, KeyEvent, list_devices
 import argparse
 import logging
 import sys
+import threading
 import time
 
 from logger import logger
 
+SUPPORTED_DEVICES = (
+    "Logitech Gamepad F310"
+    )
+
 class Joystick:
-    SUPPORTED_DEVICES = (
-        "Logitech Gamepad F310"
-        )
 
     BUTTONS = {
         304: { 'name': 'ButtonA' },
@@ -51,7 +53,7 @@ class Joystick:
             else:
                 devices = [InputDevice(path) for path in list_devices()]
                 for device in devices:
-                    if device.name in self.SUPPORTED_DEVICES:
+                    if device.name in SUPPORTED_DEVICES:
                         logger.info( 'Gamepad Detected - %s' % str(device) )
                         self.gamepad = InputDevice(device.path)
                         break
@@ -94,11 +96,22 @@ class Joystick:
             else:
                 logger.info( 'Unknown Event Type: %d, Code: %d, Value: %f' % (event.type, event.code, event.value) )
 
+def get_joysticks():
+    joysticks = []
+    devices = [InputDevice(path) for path in list_devices()]
+    for device in devices:
+        if device.name in SUPPORTED_DEVICES:
+            joysticks.append( device )
+    return joysticks
+
 def print_devices():
     print( 'Connected Devices:' ) 
     devices = [InputDevice(path) for path in list_devices()]
     for device in devices:
         print( '\t%s' % str(device) )
+
+def read_thread( joystick ):
+    joystick.read()
 
 if __name__ == '__main__':
     logger.setLevel(logging.DEBUG)
@@ -114,8 +127,20 @@ if __name__ == '__main__':
         print_devices()
         sys.exit(0)
 
-    joystick = Joystick()
-    try:
-        joystick.read()
-    except KeyboardInterrupt:
-        logger.info( 'Terminating Joystick Session' )
+    service_threads = list()
+    joysticks = get_joysticks()
+    for device in joysticks:
+        joystick = Joystick(path = device.path)
+        logger.info( 'Creating service thread for %s' % device.path )
+        x = threading.Thread( target=read_thread, args=(joystick,), daemon=True )
+        service_threads.append( x )
+        x.start()
+
+
+    for index, thread in enumerate(service_threads):
+        try:
+            logger.info( 'Joining Service thread %d' % index )
+            thread.join()
+            logger.info( 'Service thread %d complete' % index )
+        except KeyboardInterrupt:
+            break

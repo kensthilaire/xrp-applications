@@ -35,7 +35,7 @@ def read_config( filename='config.json' ):
         try:
             data = json.load(fd)
         except ValueError as err:
-            print( err )
+            logger.error( err )
 
     return data
 
