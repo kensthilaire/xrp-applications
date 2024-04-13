@@ -169,7 +169,7 @@ $ sudo systemctl disable xrp_controller.service
 
 **NOTE: If you disable the service from running automatically, you will likely have to run the initial setup command sequence to re-enable it later**
 
-### Viewing the Log Files
+## Viewing the Log Files
 
 Much of the XRP control application has been set up to use the linux system logger. For Raspberry Pi Bookworm distributions, you can view the log file using the `journalctl` command as follows:
 
