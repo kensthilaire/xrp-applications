@@ -74,7 +74,7 @@ The devices array allows for the specification of a set of XRPs with known IP ad
  * port - used to define the UDP/TCP port number for the socket connection between the control application and the XRP. This port number should be greater than 5000 and less than 65534. Default is port 9999.
  * socket_type - specifies the type of socket connection, either TCP or UDP.
  * debug - enables debug logging for additional output, set to `false` to disable verbose logging.
-    
+
 ## Running the XRP Controller
 ### Running The Program With Configuration File Settings
 To run the application using the values as defined in the `config.json` file, simply run this command:
@@ -129,3 +129,56 @@ Specifying one or more XRP devices:
 $ python xrp_controller -x 192.168.1.130,192.168.1.140
 ```
 
+### Running the XRP Controller Application Automatically
+The XRP control application can be set up to run automatically when the Raspberry Pi starts, using the linux systemd service.
+
+An example system service configuration file is provided in the repository and can be used directly if the file paths are all the same in your installation. To configure the service, issue the following commands:
+
+```
+$ pushd /etc/systemd/system
+$ sudo ln -s /home/pi/GitHub/xrp-applications/driver_station/xrp_controller.service xrp_controller.service
+$ popd
+$ sudo enable xrp_controller.service
+$ sudo start xrp_controller.service
+```
+
+To manually start, stop, restart the XRP control application service, use one of the following commands. The start command will launch the application if it is not already running. The stop command will terminate a running application, and a restart command will issue the stop/start commands in sequence to restart the application.
+
+```
+$ sudo systemctl start xrp_controller.service
+$ sudo systemctl stop xrp_controller.service
+$ sudo systemctl restart xrp_controller.service
+```
+You can also check the status of a running application by issuing:
+
+```
+$ sudo systemctl status xrp_controller.service
+```
+
+To configure the XRP application service to run automatically at startup, issue this command:
+
+```
+$ sudo systemctl enable xrp_controller.service
+```
+
+To disable the XRP application from running automatically, issue this command:
+
+```
+$ sudo systemctl disable xrp_controller.service
+```
+
+**NOTE: If you disable the service from running automatically, you will likely have to run the initial setup command sequence to re-enable it later**
+
+### Viewing the Log Files
+
+Much of the XRP control application has been set up to use the linux system logger. For Raspberry Pi Bookworm distributions, you can view the log file using the `journalctl` command as follows:
+
+```
+$ journalctl -f
+```
+
+For earlier versions of the Raspberry Pi distribution (e.g. Bullseye), you should be able to view the syslog files in /var/log:
+
+```
+$ sudo tail -f /var/log/syslog
+```
