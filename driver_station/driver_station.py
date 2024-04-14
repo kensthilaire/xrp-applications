@@ -325,7 +325,7 @@ if __name__ == '__main__':
     #
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--debug', action='store_true', dest='debug', default=False)
-    parser.add_argument('-c', '--config', action='store', dest='config', default='ds_config.json')
+    parser.add_argument('-c', '--config', action='store', dest='config', default='my_config.json')
     options = parser.parse_args()
 
     #
