@@ -39,22 +39,42 @@ The XRP library itself supports both Station (STA) and Access Point (AP) modes. 
 **NOTE: For most typical situations, using the separate WIFI device and running the XRP in STA mode may prove to be easier to manage.**
 
 ## Configuration
-The xrp_controller.py application supports command arguments that can be used to specify all of the configuration settings, but for convenience a separate config file is supported to allow the configuration to be setup and referenced. `config.json` is a JSON-formatted file containing each of the settable parameters for the application. Following is the contents of the configuration file with default settings:
+The xrp_controller.py application supports command arguments that can be used to specify all of the configuration settings, but for convenience a separate config file is supported to allow the configuration to be setup and referenced. `config.json` is a JSON-formatted file containing each of the settable parameters for the application. Following is an example configuration file with the supported configuration elements.
 
     { 
+        "name"       : "XRP-CTRL",
         "controller" : "joystick",
-        "xrp_ipaddr" : "<fill in XRP IP Address>", 
-        "port"       : 9999, 
         "socket_type": "TCP", 
-        "debug"      : true 
+        "devices"    : [
+            {
+                "name"   : "XRP-1",
+                "ipaddr" : "<XRP IP address>",
+                "port"   : 9999
+            },
+            {
+                "name"   : "XRP-2",
+                "ipaddr" : "<another XRP IP address>",
+                "port"   : 9999
+            }
+        ],
+        "debug"      : false 
     }
+
+The devices array allows for the specification of a set of XRPs with known IP addresses. Each XRP IP address and port can be individually configured.
+
+**NOTE: Be sure that the config.json file is properly formatted JSON.**
+
+**TIP: Copy the default config.json file to a separate file (e.g. my\_config.json), edit the file for the specific configuration and specify this JSON configuration file when invoking the control application (e.g. python xrp\_controller.py -c my\_config.json).**
+
 ### Configuration Parameter Descriptions 
+ * name - descriptive short name for the control application and the XRP devices.
  * controller - must be set to `joystick`. Future versions of the application will likely support additional controller types.
- * xrp_ipaddr - used to specify the IP address of the XRP. You may remove this parameter if you want to specify the XRP IP address at the command line
- * port - used to define the UDP/TCP port number for the socket connection between the control application and the XRP. This port number should be greater than 5000 and less than 65534.
- * socket_type - specifies the type of socket connection, either TCP or UDP
- * debug - enables debug logging for additional output, set to `false` to disable verbose logging
-    
+ * devices - JSON array used to specify one or more XRP devices. You may omit the devices array if you specify the XRP devices via command line arguments.
+ * ipaddr - used to specify the IP address of the XRP devices.
+ * port - used to define the UDP/TCP port number for the socket connection between the control application and the XRP. This port number should be greater than 5000 and less than 65534. Default is port 9999.
+ * socket_type - specifies the type of socket connection, either TCP or UDP.
+ * debug - enables debug logging for additional output, set to `false` to disable verbose logging.
+
 ## Running the XRP Controller
 ### Running The Program With Configuration File Settings
 To run the application using the values as defined in the `config.json` file, simply run this command:
@@ -86,13 +106,79 @@ To list all the supported command line arguments, run the program with the `--he
 ```
 $ cd ~/GitHub/xrp-applications
 $ python xrp_controller --help
-usage: xrp_controller.py [-h] [-d] [-c CONFIG] [-p PORT] [-s SOCKET_TYPE] [-x XRP_IPADDR]
+usage: xrp_controller.py [-h] [-d] [-c CONFIG] [-p XRP_PORT] [-s SOCKET_TYPE] [-x XRP_IPADDR]
 
 optional arguments:
   -h, --help            show this help message and exit
   -d, --debug
   -c CONFIG, --config CONFIG
-  -p PORT, --port PORT
+  -p XRP_PORT, --port XRP_PORT
   -s SOCKET_TYPE, --socket SOCKET_TYPE
   -x XRP_IPADDR, --xrp XRP_IPADDR
+```
+
+Examples:
+
+```
+Specifying an alternate configuration file:
+
+$ python xrp_controller -c my_config.json
+
+Specifying one or more XRP devices:
+
+$ python xrp_controller -x 192.168.1.130,192.168.1.140
+```
+
+### Running the XRP Controller Application Automatically
+The XRP control application can be set up to run automatically when the Raspberry Pi starts, using the linux systemd service.
+
+An example system service configuration file is provided in the repository and can be used directly if the file paths are all the same in your installation. To configure the service, issue the following commands:
+
+```
+$ pushd /etc/systemd/system
+$ sudo ln -s /home/pi/GitHub/xrp-applications/driver_station/xrp_controller.service xrp_controller.service
+$ popd
+$ sudo enable xrp_controller.service
+$ sudo start xrp_controller.service
+```
+
+To manually start, stop, restart the XRP control application service, use one of the following commands. The start command will launch the application if it is not already running. The stop command will terminate a running application, and a restart command will issue the stop/start commands in sequence to restart the application.
+
+```
+$ sudo systemctl start xrp_controller.service
+$ sudo systemctl stop xrp_controller.service
+$ sudo systemctl restart xrp_controller.service
+```
+You can also check the status of a running application by issuing:
+
+```
+$ sudo systemctl status xrp_controller.service
+```
+
+To configure the XRP application service to run automatically at startup, issue this command:
+
+```
+$ sudo systemctl enable xrp_controller.service
+```
+
+To disable the XRP application from running automatically, issue this command:
+
+```
+$ sudo systemctl disable xrp_controller.service
+```
+
+**NOTE: If you disable the service from running automatically, you will likely have to run the initial setup command sequence to re-enable it later**
+
+## Viewing the Log Files
+
+Much of the XRP control application has been set up to use the linux system logger. For Raspberry Pi Bookworm distributions, you can view the log file using the `journalctl` command as follows:
+
+```
+$ journalctl -f
+```
+
+For earlier versions of the Raspberry Pi distribution (e.g. Bullseye), you should be able to view the syslog files in /var/log:
+
+```
+$ sudo tail -f /var/log/syslog
 ```

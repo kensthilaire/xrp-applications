@@ -3,12 +3,12 @@
     "name"       : "XRP-DS1",
     "fms" : [
         {
-            "url_base": "http://192.168.1.150:8000",
-            "enabled" : false
+            "url_base": "http://192.168.1.113:8000",
+            "enabled" : true
         },
         {
             "url_base": "http://192.168.1.129:8000",
-            "enabled" : true
+            "enabled" : false
         }
     ],
 

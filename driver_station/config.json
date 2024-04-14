@@ -1,21 +1,17 @@
 {
-    "uuid"       : "393f1e55-fc17-4a62-9eb4-7a1c801aebc9",
     "name"       : "XRP-CTRL",
-    "port"       : 9999,
-    "socket_type": "TCP",
     "controller" : "joystick",
+    "socket_type": "TCP",
     "devices"    : [
         {
             "name"   : "XRP-1",
-            "ipaddr" : "192.168.1.129"
+            "ipaddr" : "<XRP IP address>",
+            "port"   : 9999
         },
         {
             "name"   : "XRP-2",
-            "ipaddr" : "192.168.1.120"
-        },
-        {
-            "name"   : "XRP-Local",
-            "ipaddr" : "192.168.8.206"
+            "ipaddr" : "<another XRP IP address>",
+            "port"   : 9999
         }
     ],
 

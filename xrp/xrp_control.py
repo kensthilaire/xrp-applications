@@ -4,10 +4,13 @@
 from XRPLib.defaults import *
 
 import json
+import machine
 import network
 import socket
-import time
 import sys
+import time
+import urequests as requests
+import _thread
 
 #
 # Function to read a JSON formatted config file with the XRP configuration
@@ -22,6 +25,17 @@ def read_config( filename='config.json' ):
         except ValueError as err:
             print( err )
     return data
+
+#
+# Function to retrieve a string representation of the unique hardware ID 
+# of the connected XRP
+#
+def get_id():
+    id = ''
+    s = machine.unique_id()
+    for b in s : id += str(hex(b)[2:])
+    return id
+    
 
 # Set of control events that could be sent from the driver station application
 # to the XRP. These events correspond to the Xbox Controller buttons and
@@ -55,28 +69,65 @@ control_events = {
 # Main control class for the XRP application.
 #
 class XrpControl():
-    def __init__(self, config):
+    def __init__(self, config, application='XRP_Base'):
+        print( '\nInitializing XRP...')
+        
         # save the configuration within this object
         self.config = config
         
-        # blink the LED to show that we are initializing the network
-        board.led_blink(2)
-
+        # retrieve and save the unique machine ID
+        self.id = get_id()
+        print( 'XRP Id: %s' % self.id)
+        
         # set up the network based on the specified configuration
+        # flash the LED on the pico to indicate that we're connecting to the network
+        board.led_blink(2)
         self.setup_network()
-
-        # turn the LED off now that the network is initialized, we are
-        # good to go connecting to the XRP
         board.led_off()
         
-        # initialize the network sockets that we'll use to read command data
-        self.initialize_sockets()
-
         # initialize some variables used to control the robot
         self.current_speed = 0.0
         self.current_turn = 0.0
         self.partial_cmd_buffer = ''
+        
+        self.max_angle = 180
+        self.min_angle = 0
+        self.servos = ( {'servo': servo_one, 'angle':0},{'servo': servo_two, 'angle':0} )
+        self.curr_servo = 0
+        
+        self.status = 'Initialized'
+        self.shutdown = False
+        self.status_reported = 0
+        self.application = application
+        
+        # initialize the network sockets that we'll use to read command data
+        self.initialize_sockets()
 
+        # if an FMS is configured, then attempt to register this device with the FMS
+        self.fms_configured = False
+        fms_config = self.config.get('fms', None)
+        if fms_config:
+            for fms in fms_config:
+                if fms.get('enabled', False) == True:
+                    self.fms_configured = True
+                    if self.register(fms['url_base']) == True:
+                        break
+
+    #
+    # Utility function that will set the angle of the selected servo, saving
+    # the current angle position
+    #
+    def set_servo_angle( self, angle ):
+        self.servos[self.curr_servo]['servo'].set_angle( angle )
+        self.servos[self.curr_servo]['angle'] = angle
+
+    #
+    # Utility function to retrieve the current angle position of the selected
+    # servo
+    #
+    def get_servo_angle( self ):
+        return self.servos[self.curr_servo]['angle']
+        
     #
     # Function will set up the network connection based on the 
     # configuration.
@@ -85,51 +136,64 @@ class XrpControl():
     # Bluetooth support will be added in future support
     #
     def setup_network(self):
-        MAX_ATTEMPTS = 20
-        num_attempts = 0
+        MAX_ATTEMPTS = 10
+        networks = self.config['networks']
+        for network_config in networks:
+            num_attempts = 0
+            if network_config['enabled']:
+                if network_config['network_type'] == 'STA':
+                    # Station mode
+                    print( 'Connecting to WIFI network: %s' % network_config['ssid'])
+                    sta_if = network.WLAN(network.STA_IF)
+                    sta_if.active(True)
+                    sta_if.connect(network_config['ssid'], network_config['wifi_passcode'])
 
-        if self.config['network_type'] == 'STA':
-            # Station mode
-            sta_if = network.WLAN(network.STA_IF)
-            sta_if.active(True)
-            sta_if.connect(self.config['ssid'], self.config['wifi_passcode'])
+                    while num_attempts < MAX_ATTEMPTS:
+                        if sta_if.isconnected():
+                            network_config = sta_if.ifconfig()
+                            self.my_ipaddr = network_config[0]
+                            print( 'Connected to WIFI, IP Address: %s' % (self.my_ipaddr) )
+                            break
+                        else:
+                            # increment the number of attempts, then pause and retry. We have seen the XRP 
+                            # needing some time following powerup before it will successfully connect to the
+                            # network
+                            num_attempts += 1
+                            time.sleep(1)
+                            
+                    if sta_if.isconnected():
+                        break
+                    else:
+                        print( 'Error connecting to WIFI network: %s' % network_config['ssid'] )
+                elif network_config['network_type'] == 'AP':
+                    # Access Point mode
+                    print( 'Setting up access point: %s' % network_config['ssid'])
+                    ap_if = network.WLAN(network.AP_IF)
+                    ap_if.config(essid=network_config['ssid'], password=network_config['wifi_passcode'])
+                    ap_if.active(True)
 
-            while num_attempts < MAX_ATTEMPTS:
-                if sta_if.isconnected():
-                    network_config = sta_if.ifconfig()
-                    self.my_ipaddr = network_config[0]
-                    print( 'Connected to WIFI, IP Address: %s' % (self.my_ipaddr) )
-                    break
+                    while num_attempts < MAX_ATTEMPTS:
+                        if ap_if.active():
+                            network_config = ap_if.ifconfig()
+                            self.my_ipaddr = network_config[0]
+                            print( 'WIFI Access Point Activated, IP Address: %s' % (self.my_ipaddr) )
+                            break
+                        else:
+                            # increment the number of attempts, then pause and retry. We have seen the XRP 
+                            # needing some time following powerup before it will successfully connect to the
+                            # network
+                            num_attempts += 1
+                            time.sleep(1)
+                            
+                    if ap_if.active():
+                        break
+                    else:
+                        print( 'Error setting up access point: %s' % network_config['ssid'])
                 else:
-                    # increment the number of attempts, then pause and retry. We have seen the XRP 
-                    # needing some time following powerup before it will successfully connect to the
-                    # network
-                    num_attempts += 1
-                    time.sleep(1)
-
-        elif self.config['network_type'] == 'AP':
-            # Access Point mode
-            ap_if = network.WLAN(network.AP_IF)
-            ap_if.config(essid=self.config['ssid'], password=self.config['wifi_passcode'])
-            ap_if.active(True)
-
-            while num_attempts < MAX_ATTEMPTS:
-                if ap_if.active():
-                    network_config = ap_if.ifconfig()
-                    self.my_ipaddr = network_config[0]
-                    print( 'WIFI Access Point Activated, IP Address: %s' % (self.my_ipaddr) )
-                    break
-                else:
-                    # increment the number of attempts, then pause and retry. We have seen the XRP 
-                    # needing some time following powerup before it will successfully connect to the
-                    # network
-                    num_attempts += 1
-                    time.sleep(1)
-        else:
-            print( 'Unsupported Network Mode Requested: %s' % self.config['network_type'] )
+                    print( 'Unsupported Network Mode Requested: %s' % network_config['network_type'] )
 
         if num_attempts >= MAX_ATTEMPTS:
-            print( 'Unable to set up the network for %s mode' % self.config['network_type'] )
+            print( 'Unable to set up the network for %s mode' % network_config['network_type'] )
             sys.exit(0)
 
     #
@@ -145,23 +209,27 @@ class XrpControl():
     # will likely be similar between the two socket protocols.
     # 
     def initialize_sockets(self):
-        self.my_port = self.config['listening_port']
+        server_config = self.config['server']
+        self.my_port = server_config['listening_port']
 
-        if self.config['socket_type'] == 'UDP':
+        if server_config['socket_type'] == 'UDP':
             self.read_commands = self.read_udp_commands
 
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self.socket.bind( (self.my_ipaddr, self.my_port) )
             self.socket.settimeout(5)
             print( 'Created UDP socket to receive commands')
-        elif self.config['socket_type'] == 'TCP':
+        elif server_config['socket_type'] == 'TCP':
             self.connection = None
             self.read_commands = self.read_tcp_commands
 
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.socket.bind( (self.my_ipaddr, self.my_port) )
             self.socket.listen(1)
-            print( 'Created TCP socket to listen for connections')
+            print( 'Created TCP socket to listen for connections on %s:%d' % (self.my_ipaddr, self.my_port) )
+            self.status = 'Waiting For Connection'
+        else:
+            print( 'Unknown socket type: %s' % server_config['socket_type'])
 
     #
     # Set of functions that read from the network and return the command and data associated with the
@@ -191,14 +259,19 @@ class XrpControl():
         commands = []
         try:
             if not self.connection:
+                print( 'Waiting For Connection From XRP Controller...')
                 self.connection, self.client_address = self.socket.accept()
                 self.connection.settimeout(5)
                 print( 'Connection accepted from %s' % str(self.client_address))
+                self.status = 'Connected'
 
             data=self.connection.recv(1024)
+            #print( 'Received: ', str(data) )
+
             decoded_data = self.partial_cmd_buffer + data.decode('utf-8')
+            
             if decoded_data:
-                #print( 'Received: ', decoded_data )
+                print( 'Decoded Received: ', decoded_data )
 
                 # split the decoded data into separate commands delimited by a newline
                 commands = decoded_data.split('\n')
@@ -212,11 +285,11 @@ class XrpControl():
                 print( 'Client connection error, closing socket')
                 self.connection.close()
                 self.connection = None
+                self.status = 'TCP Connection Closed'
         except OSError:
             commands = ['ReadTimeout']
         return commands
 
-    
     #
     # Function represents the main processing loop for the XRP controller. This function 
     # reads commands from the network interface and invokes the command procesing to 
@@ -224,10 +297,16 @@ class XrpControl():
     #
     def run(self):
         while True:
+            # Send the status every so often to the FMS if configured
+            if self.fms_configured:
+                self.send_status()
+            
+            # read commands from the network interface and process them
             commands = self.read_commands()
             for command in commands:
                 tokens = command.split(':')
                 if tokens[0] == 'Event':
+                    self.status = 'Processing Command'
                     self.process_event( tokens[1], tokens[2:] )
                 elif command == 'ReadTimeout':
                     # If the read times out, then no commands have been received from the
@@ -235,6 +314,7 @@ class XrpControl():
                     # zero the speed/turn when the controls are released and this clause 
                     # will handle that condition and stop any residual motion.
                     self.stop_movement()
+                    self.status = 'Waiting For Command'
                 else:
                     print('Ignoring Unexpected Command Type: %s, Args: %s' % (tokens[0],str(tokens[1:])) )
 
@@ -260,11 +340,19 @@ class XrpControl():
         elif event == 'LeftBumper':
             # Open (lower) the arm when the left bumper is pressed
             if int(args[0]) == 1:
-                servo_one.set_angle( 0 )
+                self.set_servo_angle( self.min_angle )
         elif event == 'RightBumper':
             # Close (raise) the arm when the right bumper is pressed
             if int(args[0]) == 1:
-                servo_one.set_angle( 180 )
+                self.set_servo_angle( self.max_angle )
+        elif event == 'ButtonA':
+            if int(args[0]) == 1:
+                print( 'Selecting Servo One' )
+                self.curr_servo = 0
+        elif event == 'ButtonB':
+            if int(args[0]) == 1:
+                print( 'Selecting Servo Two' )
+                self.curr_servo = 1
         else:
             # add more event handling operations here...
             pass
@@ -277,7 +365,72 @@ class XrpControl():
         self.current_speed = 0.0
         self.current_turn = 0.0
         drivetrain.arcade( self.current_speed, self.current_turn )
+
+    #
+    # Function to register this device with a configured FMS
+    #
+    # The FMS application can be used in a deployment configuration where you don't want to 
+    # have to explicitly configure the driver station with the IP addresses of all the XRPs. 
+    # With the FMS, the XRPs need only be configured with the FMS address. Each XRP will
+    # register with the FMS, providing their IP address, and the driver station application
+    # will learn the IP addresses of all connected XRPs from the FMS.
+    #
+    def register(self, url_base):
+        print( 'Registering Device With FMS: %s' % url_base )
+        self.registered = False
+        reg_data = {}
+        reg_data['hardware_id'] = self.id
+        reg_data['type'] = 'XRP'
+        reg_data['name'] = self.config.get('name','No Name')
+        reg_data['ip_address'] = self.my_ipaddr
+        reg_data['port'] = self.my_port
+        reg_data['protocol'] = self.config['server']['socket_type']
+        reg_data['application'] = self.application
+        reg_data['status'] = self.status
+
+        url = '%s/register/' % url_base
+        headers = {'Content-type': 'application/json'}
+        try:
+            resp = requests.post(url, data=json.dumps(reg_data), headers=headers)
+            if resp.status_code == 200:
+                print( 'Registration With FMS Complete' )
+                self.fms_url_base = url_base
+                self.registered = True
+            else:
+                print( 'Error Registering With FMS: %d' % resp.status_code )
+        except OSError:
+            print( 'Error Connecting To FMS: %s' % url_base )
+        return self.registered
         
+    # 
+    # Function to periodically send status to a configured FMS
+    #
+    # This function is called periodically from the main processing thread to send
+    # a simple status message to the FMS.
+    #
+    # This message will be expanded over time to convey more information to the FMS 
+    #
+    def send_status(self):
+        curr_time = time.time()
+        if (curr_time-self.status_reported) > 30:
+            print( 'Sending Status...')
+            data = {}
+            data['hardware_id'] = self.id
+            data['status'] = self.status
+
+            url = '%s/status/' % self.fms_url_base
+            headers = {'Content-type': 'application/json'}
+            try:
+                resp = requests.post(url, data=json.dumps(data), headers=headers)
+                if resp.status_code == 200:
+                    print( 'Status Sent' )
+                else:
+                    print( 'Error Sending Status To FMS: %d' % resp.status_code )
+                self.status_reported = curr_time
+
+            except OSError:
+                print( 'Error Connecting To FMS')
+
 
 if __name__ == '__main__':
 
@@ -285,5 +438,7 @@ if __name__ == '__main__':
     config = read_config()
 
     # create the instance of the XRP controller and launch the run loop
-    controller = XrpControl( config ).run()
-
+    controller = XrpControl( config )
+    if controller:
+        print( 'Starting Controller Main Loop...')
+        controller.run()
