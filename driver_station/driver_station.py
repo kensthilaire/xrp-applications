@@ -269,10 +269,11 @@ class DriverStation():
                                         (device['protocol'],curr_device['protocol']) )
                 device['protocol'] = curr_device['protocol']
 
-                device['state'] = curr_device['state'].lower()
-                if device['state'] == 'unknown':
-                    self.remove_device( device, 'State has changed, terminating connection' )
+                if device['protocol'] != curr_device['protocol'] and curr_device['state'] == 'unknown':
+                    self.remove_device( device, 'State has changed (%s vs %s), terminating connection' % \
+                                        (device['state'],curr_device['state']) )
                     terminate_controller_connection = True
+                device['state'] = curr_device['state'].lower()
 
         # Now look to see if any of the devices are no longer being managed by this instance, and remove them
         # from the device table
