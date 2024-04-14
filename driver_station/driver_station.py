@@ -257,15 +257,18 @@ class DriverStation():
                 # Update any parameters and look for meaningful changes
                 device['name'] = curr_device['name']
                 if device['ip_address'] != curr_device['ip_address']:
-                    self.remove_device( 'IP address is different, terminating connection' )
+                    self.remove_device( 'IP address is different (%s vs %s), terminating connection' % \
+                                        (device['ip_address'],curr_device['ip_address']) )
                 device['ip_address'] = curr_device['ip_address']
 
                 if device['port'] != curr_device['port']:
-                    self.remove_device( device, 'IP port is different, terminating connection' )
+                    self.remove_device( device, 'IP port is different (%s vs %s), terminating connection' % \
+                                        (device['port'],curr_device['port']) )
                 device['port'] = curr_device['port']
 
                 if device['protocol'] != curr_device['protocol']:
-                    self.remove_device( device, 'Protocol is different, terminating connection' )
+                    self.remove_device( device, 'Protocol is different (%s vs %s), terminating connection' % \
+                                        (device['protocol'],curr_device['protocol']) )
                 device['protocol'] = curr_device['protocol']
 
                 device['state'] = curr_device['state'].lower()
@@ -283,7 +286,7 @@ class DriverStation():
                     break
 
             if not found:
-                self.remove_device( device, 'No longer assigned to this instance' % (device['name'],device['hardware_id']) )
+                self.remove_device( device, 'No longer assigned to this instance' )
 
     #
     # Utility function to remove the specified device from the table of managed devices. The device controller
