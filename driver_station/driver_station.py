@@ -26,6 +26,8 @@ from xrp_controller import XrpController, controller_service
 #
 def ds_controller_service( device, controller ):
 
+    logger.debug( 'Starting XRP controller service thread' )
+
     # invoke the XRP controller service routine which will not return unless there is an error
     controller_service( controller )
 
@@ -75,7 +77,7 @@ class DriverStation():
     def setup_schedule(self):
         self.scheduler = SafeScheduler()
         self.scheduler.every(5).seconds.do(self.scan_controllers)
-        self.scheduler.every(10).seconds.do(self.connect_devices)
+        self.scheduler.every(10).seconds.do(self.scan_devices)
 
     #
     # Function to register this driver station control instance with the FMS. Once registered,
@@ -169,11 +171,13 @@ class DriverStation():
     # associated with this instance. If not, then ask for all devices.
     # 
     def get_devices(self):
+        devices = list()
+
         if not self.fms:
             logger.error( 'Error retrieving devices, no FMS connected' )
-            return list()
+            return devices
 
-        logger.info( 'Retrieving list of registered XRP devices...')
+        logger.debug( 'Retrieving list of registered XRP devices...')
         url = '%s/api/devices/?type=XRP' % (self.fms['url_base'])
 
         alliance = self.fms_config.get( 'alliance', None )
@@ -184,8 +188,6 @@ class DriverStation():
             resp = requests.get(url)
             if resp.status_code == 200:
                 devices = resp.json()
-                for device in devices:
-                    logger.info( 'Device: %s' % str(device) )
             else:
                 logger.error( 'Error Retrieving Devices From FMS: %d' % resp.status_code )
         except OSError:
@@ -194,46 +196,14 @@ class DriverStation():
         return devices
         
     #
-    # Function is called periodically to scan for any newly connected or disconnected gamepad controllers
-    # For newly discovered controllers, a new XRP control thread will be created to service any unconnected
-    # devices. And, for any disconnected controllers, the control thread will be terminated automatically by
-    # the underlying driver, and we'll remove that controller from this driver station instance
-    #
-    def scan_controllers(self):
-        new_controllers = joystick.get_joysticks()
-        if len(new_controllers) == len(self.controllers):
-            # no change detected
-            pass
-        elif len(new_controllers) < len(self.controllers):
-            logger.info( 'Controller removal detected' )
-            # we now have less controllers plugged in
-            pass
-        else:
-            logger.info( 'New controller discovered' )
-            # we have a new controller, so let's find the new one and connect it up to any unconnected device
-            for new_controller in new_controllers:
-                logger.info( 'Controller: %s' % str( new_controller ) )
-                found = False
-                for curr_controller in self.controllers:
-                    if new_controller.path == curr_controller.path:
-                        logger.info( 'Controller: %s' % str( new_controller ) )
-                        found = True
-                        break
-                if not found:
-                    self.connect_device(new_controller)
-                        
-        self.controllers = new_controllers
-
-    #
     # Function will create an XRP control session with the specified controller instance. This function will
     # look for an XRP device that is not yet connected to a gamepad controller and initiate the connection
     #
     def connect_device(self, controller): 
-        logger.debug( 'Controller: %s' % controller )
         for device in self.devices:
             if not device.get('controller', None):
                 logger.info( 'Connecting %s at address: %s:%s to controller: %s' % \
-                              (device['name'],device['ip_address'],device['port'],controller) )
+                              (device['name'],device['ip_address'],device['port'],controller.path) )
                 controller_instance = XrpController(path=controller.path, socket_type=device['protocol'], host=device['ip_address'], port=int(device['port']))
                 device['controller'] = controller_instance
                 control_thread = threading.Thread( target=ds_controller_service, args=(device,controller_instance,), daemon=True )
@@ -242,12 +212,90 @@ class DriverStation():
                 break
 
     #
-    # Function will loop through the set of discovered controllers and initiate a connection to all devices
-    # associated with this driver station instance
+    # Function is called periodically to scan for any newly connected or disconnected gamepad controllers
+    # For newly discovered controllers, a new XRP control thread will be created to service any unconnected
+    # devices. And, for any disconnected controllers, the control thread will be terminated automatically by
+    # the underlying driver, and we'll remove that controller from this driver station instance
     #
-    def connect_devices(self): 
+    def scan_controllers(self):
+        new_controllers = list()
+        self.controllers = joystick.get_joysticks()
+
         for controller in self.controllers:
-            self.connect_device( controller )
+            found = False
+            for device in self.devices:
+                controller_instance = device.get('controller',None)
+                if controller_instance and controller_instance.path == controller.path:
+                    found = True
+                    break
+            if not found:
+                new_controllers.append( controller )
+
+        for new_controller in new_controllers:
+            self.connect_device(new_controller)
+
+    #
+    # Function will be called periodically to look for newly discovered XRP devices and add them to the set of
+    # managed devices. This function will also detect device changes or devices that are no longer reporting as healthy
+    # terminate those sessions, too
+    #
+    def scan_devices(self): 
+        curr_devices = self.get_devices()
+
+        # Check for newly discovered devices or devices that have had the communication parameters modified
+        for curr_device in curr_devices:
+            found = False
+            for device in self.devices:
+                if curr_device['hardware_id'] == device['hardware_id']:
+                    found = True
+                    break
+
+            if not found:
+                logger.info( 'Found new device: %s, queuing for connection' % (curr_device['hardware_id']) )
+                self.devices.append(curr_device)
+            else:
+                # Update any parameters and look for meaningful changes
+                device['name'] = curr_device['name']
+                if device['ip_address'] != curr_device['ip_address']:
+                    self.remove_device( 'IP address is different, terminating connection' )
+                device['ip_address'] = curr_device['ip_address']
+
+                if device['port'] != curr_device['port']:
+                    self.remove_device( device, 'IP port is different, terminating connection' )
+                device['port'] = curr_device['port']
+
+                if device['protocol'] != curr_device['protocol']:
+                    self.remove_device( device, 'Protocol is different, terminating connection' )
+                device['protocol'] = curr_device['protocol']
+
+                device['state'] = curr_device['state'].lower()
+                if device['state'] == 'unknown':
+                    self.remove_device( device, 'State has changed, terminating connection' )
+                    terminate_controller_connection = True
+
+        # Now look to see if any of the devices are no longer being managed by this instance, and remove them
+        # from the device table
+        for device in self.devices:
+            found = False
+            for curr_device in curr_devices:
+                if curr_device['hardware_id'] == device['hardware_id']:
+                    found = True
+                    break
+
+            if not found:
+                self.remove_device( device, 'No longer assigned to this instance' % (device['name'],device['hardware_id']) )
+
+    #
+    # Utility function to remove the specified device from the table of managed devices. The device controller
+    # will be signaled to terminate the read loop and the service thread will exit.
+    #
+    def remove_device(self, device, msg):
+        logger.info( 'Device: %s, ID: %s - %s' % (device['name'],device['hardware_id'],msg) )
+        controller = device.get('controller', None)
+        if controller:
+            controller.terminate_read_loop = True
+        self.devices.remove( device )
+
                 
 #
 # Signal handler for the signals to gracefully terminate the service
@@ -289,12 +337,13 @@ if __name__ == '__main__':
     else:
         logger.setLevel(logging.INFO)
 
+    # create the main driver station application instance
     ds = DriverStation(config)
 
     # retrieve the list of XRP devices associated with this driver station instance
-    ds.devices = ds.get_devices()
+    ds.scan_devices()
 
-    # perform an initial scan for gamepad controllers and associate the controllers with XRP devices
+    # perform an initial scan for gamepad controllers and associate the controllers with discovered XRP devices
     ds.scan_controllers()
 
     delay = 0.5
