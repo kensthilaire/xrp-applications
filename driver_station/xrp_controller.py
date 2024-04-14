@@ -77,11 +77,11 @@ class XrpController(Joystick):
                     logger.error( 'Error Connecting to %s:%d, Connection Refused' % (self.host,self.port) )
                     break
                 except OSError:
-                    time.sleep(5)
                     logger.error( 'Error Connecting to %s:%d, Check if XRP is running' % (self.host,self.port) )
+                    break
                 except:
-                    time.sleep(5)
                     logger.error( 'Unknown Error Connecting to %s:%d, Check if XRP is running' % (self.host,self.port) )
+                    break
         else:
             logger.error( 'Unknown Socket Type: %s' % (self.socket_type) )
 
