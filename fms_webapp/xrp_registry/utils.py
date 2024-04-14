@@ -1,5 +1,6 @@
 
 import time
+import datetime
 
 from .models import Device
 
@@ -32,7 +33,8 @@ def add_or_update_device( config ):
             device_obj.status=config.get('status', 'Unknown')
             device_obj.application=config.get('application', 'Unknown')
             device_obj.version=config.get('version', 'Unknown')
-            device_obj.last_reported = time.time()
+            device_obj.last_reported = datetime.datetime.now().strftime('%m/%d/%Y %I:%M:%S %p' )
+            device_obj.last_timestamp = int(time.time())
             device_obj.save()
     else:
         print( 'No Hardware Device Provided' )
@@ -62,7 +64,8 @@ def update_device( status_info ):
             device_obj = devices[0]
             device_obj.state='running'
             device_obj.status=status_info.get('status', 'Unknown')
-            device_obj.last_reported = time.time()
+            device_obj.last_reported = datetime.datetime.now().strftime('%m/%d/%Y %I:%M:%S %p' )
+            device_obj.last_timestamp = int(time.time())
             device_obj.save()
     else:
         print( 'No Hardware Device Provided' )
