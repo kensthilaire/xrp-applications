@@ -26,8 +26,6 @@ from xrp_controller import XrpController, controller_service
 #
 def ds_controller_service( device, controller ):
 
-    logger.debug( 'Starting XRP controller service thread' )
-
     # invoke the XRP controller service routine which will not return unless there is an error
     controller_service( controller )
 
@@ -257,7 +255,7 @@ class DriverStation():
                 # Update any parameters and look for meaningful changes
                 device['name'] = curr_device['name']
                 if device['ip_address'] != curr_device['ip_address']:
-                    self.remove_device( 'IP address is different (%s vs %s), terminating connection' % \
+                    self.remove_device( device, 'IP address is different (%s vs %s), terminating connection' % \
                                         (device['ip_address'],curr_device['ip_address']) )
                 device['ip_address'] = curr_device['ip_address']
 
