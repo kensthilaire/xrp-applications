@@ -48,17 +48,19 @@ class XrpController(Joystick):
 
         self.shutdown = False
 
+        self.path = path
         self.host = host
         self.port = int(port)
         self.socket = None
-        self.socket_type = socket_type
+        self.socket_type = socket_type.upper()
 
     def initialize_client_socket(self):
         # create a socket based on the requested type
-        logger.info( 'Creating Client Connection to %s:%d' % (self.host,self.port) )
         if self.socket_type == 'UDP':
+            logger.info( 'Creating UDP Client Connection to %s:%d' % (self.host,self.port) )
             self.socket = socket.socket( socket.AF_INET, socket.SOCK_DGRAM )
         elif self.socket_type == 'TCP':
+            logger.info( 'Creating TCP Client Connection to %s:%d' % (self.host,self.port) )
             while not self.shutdown:
                 try:
                     self.socket = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
@@ -71,6 +73,11 @@ class XrpController(Joystick):
                 except OSError:
                     time.sleep(5)
                     logger.error( 'Error Connecting to %s:%d, Check if XRP is running' % (self.host,self.port) )
+                except:
+                    time.sleep(5)
+                    logger.error( 'Unknown Error Connecting to %s:%d, Check if XRP is running' % (self.host,self.port) )
+        else:
+            logger.error( 'Unknown Socket Type: %s' % (self.socket_type) )
 
     def shutdown( self, *args ):
         self.terminate_read_loop = True
@@ -132,7 +139,10 @@ class XrpController(Joystick):
 # Simple service routine that invokes the controller method that runs the joystick control loop
 #
 def controller_service( controller ):
+    logger.debug( 'Initiating client socket connection' )
     controller.initialize_client_socket()
+
+    logger.debug( 'Launching joystic control' )
     controller.joystick_control()
 
 #
