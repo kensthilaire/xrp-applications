@@ -14,5 +14,6 @@ urlpatterns = [
     re_path(r'^home/', views.home, name='home'),
     re_path(r'^register/', views.register, name='register'),
     re_path(r'^status/', views.status, name='status'),
+    re_path(r'^update/', views.update, name='update'),
 
 ]

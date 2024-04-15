@@ -8,7 +8,8 @@ from django.views.decorators.csrf import csrf_exempt
 
 from .models import Device
 from .serializers import DeviceSerializer
-from .utils import add_or_update_device, update_device, delete_device
+from .utils import add_or_update_device, update_device_status, delete_device
+
 
 class DeviceViewSet(viewsets.ModelViewSet):
     """
@@ -47,10 +48,17 @@ def register(request):
 @api_view(http_method_names=['POST'])
 def status(request):
     if request.method == 'POST':
-        ret_val = update_device( request.data )
+        ret_val = update_device_status( request.data )
         return HttpResponse(ret_val)
     return HttpResponse("Failed")
 
+@csrf_exempt
+@api_view(http_method_names=['POST'])
+def update(request):
+    if request.method == 'POST':
+        ret_val = add_or_update_device( request.data )
+        return HttpResponse(ret_val)
+    return HttpResponse("Failed")
 
 def home(request):
     return render(request, "xrp_registry/home.html", {})
