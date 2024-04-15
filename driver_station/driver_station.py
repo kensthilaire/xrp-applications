@@ -210,7 +210,7 @@ class DriverStation():
                               (device['name'],device['ip_address'],device['port'],controller.path) )
                 controller_instance = XrpController(path=controller.path, socket_type=device['protocol'], host=device['ip_address'], port=int(device['port']))
                 device['controller'] = controller_instance
-                control_thread = threading.Thread( target=ds_controller_service, args=(device,controller_instance,), daemon=True )
+                control_thread = threading.Thread( target=ds_controller_service, args=(self,device,controller_instance,), daemon=True )
                 device['thread'] = control_thread
                 control_thread.start()
                 break

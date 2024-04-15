@@ -164,7 +164,7 @@ class XrpController(Joystick):
 def controller_service( controller ):
     logger.info( 'XRP Controller Service Starting For Device: %s' % str(controller) )
 
-    connected, err = self.initialize_client_socket()
+    connected, err = controller.initialize_client_socket()
     if connected:
         err = controller.joystick_control()
 
