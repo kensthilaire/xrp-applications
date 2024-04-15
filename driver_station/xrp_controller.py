@@ -58,7 +58,8 @@ class XrpController(Joystick):
         return 'XRP Address: %s:%d, Type: %s' % (self.host,self.port,self.socket_type)
 
     def initialize_client_socket(self):
-        connected = False
+        connected = True
+        err = ''
 
         # create a socket based on the requested type
         if self.socket_type == 'UDP':
@@ -71,21 +72,26 @@ class XrpController(Joystick):
                     self.socket = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
                     self.socket.connect( (self.host,self.port) )
                     logger.info( 'Client Connection Established to %s:%d' % (self.host,self.port) )
-                    connected = True
                     break
                 except ConnectionRefusedError:
                     logger.error( 'Error Connecting to %s:%d, Connection Refused' % (self.host,self.port) )
+                    connected = False
+                    err = 'Connection Refused'
                     break
                 except OSError:
                     logger.error( 'Error Connecting to %s:%d, Check if XRP is running' % (self.host,self.port) )
+                    connected = False
+                    err = 'XRP Not Reachable'
                     break
                 except:
                     logger.error( 'Unknown Error Connecting to %s:%d, Check if XRP is running' % (self.host,self.port) )
+                    connected = False
+                    err = 'XRP Connection Error'
                     break
         else:
             logger.error( 'Unknown Socket Type: %s' % (self.socket_type) )
 
-        return connected
+        return connected,err
 
     def shutdown( self, *args ):
         self.terminate_read_loop = True
@@ -132,13 +138,16 @@ class XrpController(Joystick):
                     self.send_event( decoded_event )
                 except ConnectionResetError:
                     logger.error( 'Server Connection Error from %s:%d, Restablishing connection' % (self.host,self.port) )
-                    if not self.initialize_client_socket():
+                    connected, err = self.initialize_client_socket()
+                    if not connected:
                         logger.info( 'Connection Could Not Be Restablished, terminating joystick processing' )
+                        err = 'Connection Reset'
                         break
                 except BrokenPipeError:
                     logger.error( 'Client Connection Lost to %s:%d, Restablishing connection' % (self.host,self.port) )
                     if not self.initialize_client_socket():
                         logger.info( 'Connection Could Not Be Restablished, terminating joystick processing' )
+                        err = 'Broken Pipe'
                         break
 
                 if self.terminate_read_loop:
@@ -147,16 +156,20 @@ class XrpController(Joystick):
         except OSError:
             logger.error( 'Controller Error Detected, terminating joystick processing' )
 
+        return err
+
 #
 # Simple service routine that invokes the controller method that runs the joystick control loop
 #
 def controller_service( controller ):
     logger.info( 'XRP Controller Service Starting For Device: %s' % str(controller) )
 
-    if controller.initialize_client_socket():
-        controller.joystick_control()
+    connected, err = self.initialize_client_socket()
+    if connected:
+        err = controller.joystick_control()
 
     logger.info( 'XRP Controller Service Terminated For Device: %s' % str(controller) )
+    return err
 
 #
 #

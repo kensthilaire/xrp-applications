@@ -24,15 +24,21 @@ from xrp_controller import XrpController, controller_service
 # XRP device. This service routin will call the base controller service and it will only
 # return if there is some form of error, like when a controller is disconnected
 #
-def ds_controller_service( device, controller ):
+def ds_controller_service( ds, device, controller ):
 
     # invoke the XRP controller service routine which will not return unless there is an error
-    controller_service( controller )
+    err = controller_service( controller )
 
     # if the controller service function ever returns, it's because of a gamepad/joystick 
     # communication failure. Just clear the controller setting within the device and 
     # the device will reconnect once the problem clears
     device['controller'] = None
+
+    if err == 'XRP Not Reachable':
+        # if the XRP is not reachable, let's move it to the end of the device list so that
+        # others may connect
+        ds.devices.remove(device)
+        ds.devices.append(device)
 
 class DriverStation():
     def __init__(self, config):
