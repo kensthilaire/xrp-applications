@@ -10,7 +10,7 @@
     "fms" : [
         {
             "url_base": "http://<ip address>:8000",
-            "enabled" : true
+            "enabled" : false
         }
     ],
     "server" : {

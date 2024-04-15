@@ -136,7 +136,7 @@ class XrpControl():
     # Bluetooth support will be added in future support
     #
     def setup_network(self):
-        MAX_ATTEMPTS = 10
+        MAX_ATTEMPTS = 20
         networks = self.config['networks']
         for network_config in networks:
             num_attempts = 0
@@ -224,6 +224,7 @@ class XrpControl():
             self.read_commands = self.read_tcp_commands
 
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.socket.bind( (self.my_ipaddr, self.my_port) )
             self.socket.listen(1)
             print( 'Created TCP socket to listen for connections on %s:%d' % (self.my_ipaddr, self.my_port) )
@@ -286,6 +287,7 @@ class XrpControl():
                 self.connection.close()
                 self.connection = None
                 self.status = 'TCP Connection Closed'
+                self.stop_movement()
         except OSError:
             commands = ['ReadTimeout']
         return commands
@@ -381,12 +383,17 @@ class XrpControl():
         reg_data = {}
         reg_data['hardware_id'] = self.id
         reg_data['type'] = 'XRP'
-        reg_data['name'] = self.config.get('name','No Name')
         reg_data['ip_address'] = self.my_ipaddr
         reg_data['port'] = self.my_port
         reg_data['protocol'] = self.config['server']['socket_type']
         reg_data['application'] = self.application
+        reg_data['version'] = '1.0 Beta'
         reg_data['status'] = self.status
+        # Add in the name if configured (optional)
+        try:
+            reg_data['name'] = self.config['name']
+        except:
+            pass
 
         url = '%s/register/' % url_base
         headers = {'Content-type': 'application/json'}
