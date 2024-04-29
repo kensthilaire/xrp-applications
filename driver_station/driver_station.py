@@ -206,9 +206,20 @@ class DriverStation():
     def connect_device(self, controller): 
         for device in self.devices:
             if not device.get('controller', None):
-                logger.info( 'Connecting %s at address: %s:%s to controller: %s' % \
-                              (device['name'],device['ip_address'],device['port'],controller.path) )
-                controller_instance = XrpController(path=controller.path, socket_type=device['protocol'], host=device['ip_address'], port=int(device['port']))
+                protocol = device.get('protocol', 'UDP').upper()
+                host = device.get('ip_address', None)
+                try:
+                    port = int(device['port']
+                except KeyError:
+                    port = None
+                
+                if type == 'BLUETOOTH':
+                    logger.info( 'Creating %s connection for %s to controller: %s' % (type,device['name'],controller.path) )
+                else:
+                    logger.info( 'Creating %s connection for  %s at address: %s:%s to controller: %s' % \
+                              (type,device['name'],device['ip_address'],device['port'],controller.path) )
+
+                controller_instance = XrpController(path=controller.path, protocol=protocol, host=host, port=port)
                 device['controller'] = controller_instance
                 control_thread = threading.Thread( target=ds_controller_service, args=(self,device,controller_instance,), daemon=True )
                 device['thread'] = control_thread
@@ -312,12 +323,13 @@ def shutdown_handler(signum, frame):
     shutdown_all()
     sys.exit(0)
 
-def shutdown_all():
+def shutdown_all(ds=None):
     logger.info( 'Terminating controller service threads' )
-    for device in ds.devices:
-        controller = device.get('controller', None)
-        if controller:
-            controller.terminate_read_loop = True
+    if ds:
+        for device in ds.devices:
+            controller = device.get('controller', None)
+            if controller:
+                controller.terminate_read_loop = True
     time.sleep(2)
 
 if __name__ == '__main__':
@@ -361,6 +373,6 @@ if __name__ == '__main__':
             time.sleep( delay )
         except KeyboardInterrupt:
             logger.info( 'Initiating shutdown from keyboard' )
-            shutdown_all()
+            shutdown_all(ds)
                 
     logger.info( 'Driver Station Application Terminated.' )

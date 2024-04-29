@@ -79,7 +79,7 @@ class Joystick:
             if axis:
                 decoded_event['name'] = axis['name']
                 decoded_event['value'] = event.value / axis['max']
-                decoded_event['rounded_value'] = round((event.value / axis['max']), 2)
+                decoded_event['rounded_value'] = round((event.value / axis['max']), 1)
 
         return decoded_event
 
