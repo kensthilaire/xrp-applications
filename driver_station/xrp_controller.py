@@ -152,9 +152,16 @@ class XrpController(Joystick):
 
             if control.get('enabled', False) == True:
                 if control['type'] == 'AXIS':
-                    # for the axis type, send the value rounded to the nearest 2 decimal points
+                    # for the axis type, send the value to the nearest tenth
                     value = event['rounded_value']
-                    if value == self.curr_values.get(name,0):
+
+                    # As a way to reduce the packets being sent to the XRP, only send changes
+                    # to the most recent value and only send even values
+                    #
+                    # This event values only helps with response time and testing has not shown any
+                    # real adverse behavior. But, as we refine the packet interface between the
+                    # control application and the XRP, we may remove this even number constraint 
+                    if value == self.curr_values.get(name,0) or int(value*10) % 2 != 0:
                         return
                     self.curr_values[name] = value
                         
