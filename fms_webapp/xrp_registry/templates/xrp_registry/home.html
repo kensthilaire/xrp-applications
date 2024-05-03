@@ -16,18 +16,18 @@
     var deviceData;
 
     const columns = {
-            'name': 'Name',
             'hardware_id': 'Id',
+            'name': 'Name',
             'ip_address': 'IP_Address',
             'port': 'Port',
             'application': 'Application',
             'alliance': 'Alliance',
-            'protocol': 'Protocol',
             'state': 'State',
             'status': 'Status',
+            'last_reported': 'Last_Reported',
             'type': 'Type',
             'version': 'Version',
-            'last_reported': 'Last_Reported'
+            'protocol': 'Protocol'
     };
 
     function getColumnHeaders() {
@@ -85,7 +85,7 @@
                             "iDisplayLength": 12,
 
                             // specify which column you want to sort on and either 'asc' or 'desc'
-                            "order": [[0, 'asc']],
+                            "order": [[9,'desc'],[1, 'asc']],
                             "select": false,
 
                             "columns": getColumnDefs()

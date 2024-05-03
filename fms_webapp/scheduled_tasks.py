@@ -53,7 +53,6 @@ def check_device_status():
         if since_reported > 300 and device.state != 'unknown':
             logger.info( 'Marking device status to unknown for device: %s' % device.hardware_id )
             device.state = 'unknown'
-            device.status = ''
             device.save()
 
     logger.info( 'Device Status Check Complete.' )

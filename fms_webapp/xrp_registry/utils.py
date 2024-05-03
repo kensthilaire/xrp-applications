@@ -28,18 +28,39 @@ def add_or_update_device( config ):
         else:
             print( 'Update Existing Device' )
             device_obj = devices[0]
-            device_obj.name=config.get('name', 'No Name')
             device_obj.type=config.get('type', 'Unknown')
             device_obj.ip_address=config.get('ip_address', 'Unassigned')
             device_obj.port=config.get('port', '9999')
             device_obj.protocol=config.get('protocol', 'tcp')
-            device_obj.state=config.get('state', 'registered')
-            device_obj.status=config.get('status', 'Unknown')
-            device_obj.application=config.get('application', 'Unknown')
-            device_obj.alliance=config.get('alliance', 'Unknown')
-            device_obj.version=config.get('version', 'Unknown')
             device_obj.last_reported = datetime.datetime.now().strftime('%m/%d/%Y %I:%M:%S %p' )
             device_obj.last_timestamp = int(time.time())
+
+            # add in the optional parameters if they are specified in the update
+            try:
+                device_obj.name=config['name']
+            except KeyError:
+                pass
+            try:
+                device_obj.alliance=config['alliance']
+            except KeyError:
+                pass
+            try:
+                device_obj.application=config['application']
+            except KeyError:
+                pass
+            try:
+                device_obj.state=config['state']
+            except KeyError:
+                pass
+            try:
+                device_obj.status=config['status']
+            except KeyError:
+                pass
+            try:
+                device_obj.version=config['version']
+            except KeyError:
+                pass
+
             device_obj.save()
 
     else:
