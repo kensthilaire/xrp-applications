@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+import random
 import socket
 import signal
 import sys
@@ -10,7 +11,7 @@ import time
 
 from adafruit_ble import BLERadio
 from adafruit_ble.services.nordic import UARTService
-from bleak.exc import BleakError
+from bleak.exc import BleakError, BleakDBusError
 
 from config import read_config
 
@@ -209,7 +210,22 @@ class XrpController(Joystick):
                         break
                 except BleakError:
                     logger.error( 'Bluetooth Connection Lost to %s, Restablishing connection' % (self.name) )
-                    connected, err = self.initialize_client()
+                    attempts = 0
+                    while not connected and attempts < 5:
+                        try:
+                            connected, err = controller.initialize_client()
+                        except AttributeError:
+                            logger.debug('Attribute error, delay then retry')
+                            time.sleep(1)
+                            attempts += 1
+                        except BleakDBusError:
+                            # this error may be generated if we attempt to scan for multiple XRP devices over 
+                            # bluetooth at the same time. The solution for now is to catch the exception and
+                            # retry after a slight delay
+                            delay = random.randint(5,10)
+                            logger.debug('Pausing %d seconds before reattempting connect attempt', delay)
+                            time.sleep(delay)
+                            attempts += 1
                     if not connected:
                         logger.info( 'Connection Could Not Be Restablished, terminating joystick processing' )
                         err = 'Connection Lost'
@@ -223,13 +239,33 @@ class XrpController(Joystick):
 
         return err
 
+mutex = threading.Lock()
+
 #
 # Simple service routine that invokes the controller method that runs the joystick control loop
 #
 def controller_service( controller ):
+    global mutex
     logger.info( 'XRP Controller Service Starting For Device: %s' % str(controller) )
 
-    connected, err = controller.initialize_client()
+    connected = False
+    while not connected:
+        with mutex:
+            try:
+                connected, err = controller.initialize_client()
+            except AttributeError:
+                logger.debug('Attribute error, delay then retry')
+            except BleakDBusError:
+                # this error may be generated if we attempt to scan for multiple XRP devices over 
+                # bluetooth at the same time. The solution for now is to catch the exception and
+                # retry after a slight delay
+                logger.debug('Pausing to allow other Bluetooth connections')
+
+            if not connected:
+                delay = random.randint(5,10)
+                logger.debug('Pausing %d seconds to allow other connections' % delay)
+                time.sleep(delay)
+
     if connected:
         err = controller.joystick_control()
 
@@ -289,12 +325,15 @@ if __name__ == '__main__':
     else:
         # retrieve the set of devices configured for this controller instance
         xrp_devices = config.get('devices', list())
+        logger.debug( 'Number of configured devices: %d' % len(xrp_devices) )
 
     #
     # retrieve the list of joystick devices that are connected to this controller and 
     # create an XRP controller instance to associate with the joysticks.
     xrp_controllers = list()
     connected_joysticks = joystick.get_joysticks()
+    logger.debug( 'Number of connected joysticks: %d' % len(connected_joysticks) )
+
     for index, joystick in enumerate(connected_joysticks):
         if index < len(xrp_devices):
             # retrieve the device configuration
