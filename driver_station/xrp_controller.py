@@ -131,6 +131,7 @@ class XrpController(Joystick):
             pass
 
     def joystick_control(self):
+        err = ''
         try:
             for event in self.gamepad.read_loop():
                 try:
@@ -145,7 +146,8 @@ class XrpController(Joystick):
                         break
                 except BrokenPipeError:
                     logger.error( 'Client Connection Lost to %s:%d, Restablishing connection' % (self.host,self.port) )
-                    if not self.initialize_client_socket():
+                    connected, err = self.initialize_client_socket()
+                    if not connected:
                         logger.info( 'Connection Could Not Be Restablished, terminating joystick processing' )
                         err = 'Broken Pipe'
                         break
