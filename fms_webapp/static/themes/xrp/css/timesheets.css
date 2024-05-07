@@ -1,0 +1,13 @@
+
+table tbody th table-header {
+    border-bottom: 1px solid black;
+    border-collapse: collapse;
+}
+
+.datepicker {
+  z-index: 1600 !important; /* has to be larger than 1050 */
+}
+
+dt { float: left; clear: left; width:100px; font-weight: bold; }
+dd { float: left; }
+            

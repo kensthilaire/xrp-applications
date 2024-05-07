@@ -1,0 +1,28 @@
+
+.goldcolor {color:#d4af37;} 
+.silvercolor {color:#aaa9ad;}
+.bronzecolor {color:#b08d57;}
+                
+[data-md-tooltip] {     
+    position: relative; 
+}                           
+[data-md-tooltip]:before {      
+    content: attr(data-md-tooltip);
+    position: absolute;     
+    bottom: 5px;                
+    left: 70px;             
+    padding: 8px;           
+    transform: translateX(-50%) scale(0);
+    transition: transform 0.3s ease-in-out;
+    transform-origin: top;
+    background: var(--main-bg-color);
+    color: white;       
+    border-radius: 2px; 
+    font-size: 12px;        
+    font-family: Roboto,sans-serif;
+    font-weight: 400;   
+}                           
+[data-md-tooltip]:hover:before {
+    transform: translateX(-50%) scale(1);
+}               
+

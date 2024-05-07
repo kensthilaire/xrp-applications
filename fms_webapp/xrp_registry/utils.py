@@ -22,7 +22,8 @@ def add_or_update_device( config ):
                                  status=config.get('status', 'Unknown'),
                                  alliance=config.get('alliance', 'any'),
                                  application=config.get('application', ''),
-                                 version=config.get('version', '')
+                                 version=config.get('version', ''),
+                                 ble_service=config.get('ble_service', '')
                          )
             device_obj.save()
         else:
@@ -58,6 +59,10 @@ def add_or_update_device( config ):
                 pass
             try:
                 device_obj.version=config['version']
+            except KeyError:
+                pass
+            try:
+                device_obj.ble_service=config['ble_service']
             except KeyError:
                 pass
 
