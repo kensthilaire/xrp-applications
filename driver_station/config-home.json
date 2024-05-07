@@ -1,0 +1,8 @@
+{
+    "name"       : "XRP-DS1",
+    "controller" : "joystick",
+    "xrp_ipaddr" : "192.168.1.128",
+    "port"       : 9999,
+    "socket_type": "TCP",
+    "debug"      : false
+}

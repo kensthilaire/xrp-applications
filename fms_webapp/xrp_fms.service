@@ -1,0 +1,11 @@
+[Unit]
+Description=XRP Field Management Service
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/GitHub/xrp-applications/fms_webapp
+ExecStart=/home/pi/Envs/xrp-fms/bin/python /home/pi/GitHub/xrp-applications/fms_webapp/manage.py runserver 0.0.0.0:8000
+
+[Install]
+WantedBy=multi-user.target
+

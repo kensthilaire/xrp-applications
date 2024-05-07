@@ -1,0 +1,46 @@
+
+.fc-state-highlight {background:Khaki;}
+.fc-event, .fc-event-dot {background-color: var(--main-bg-color);border: var(--main-bg-color);}
+.fc-day-number {color: var(--main-bg-color);}
+
+
+#calendar {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.datepicker {
+  z-index: 1600 !important; /* has to be larger than 1050 */
+}
+
+.col-sm-6-left {
+    padding-left:  0px;
+    padding-right: 2px;
+}
+
+.col-sm-6-right {
+    padding-left:  2px;
+    padding-right: 0px;
+}
+
+.modal-custom-header {
+    color:              #fff;
+    background-color:   var(--main-bg-color);
+}
+
+.modal-header-close-icon {
+    color:              #fff;
+    background-color:   var(--main-bg-color);
+    padding-left:       4px;
+    padding-right:      4px;
+    padding-top:        4px;
+}
+
+.modal-header-icons {
+    color:              #fff;
+    background-color:   var(--main-bg-color);
+    padding-left:       4px;
+    padding-right:      4px;
+    padding-bottom:     4px;
+}
+

@@ -2,4 +2,5 @@ evdev
 requests
 schedule
 urllib3
-
+adafruit-blinka-bleio
+adafruit-circuitpython-ble

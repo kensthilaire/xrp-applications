@@ -182,3 +182,21 @@ For earlier versions of the Raspberry Pi distribution (e.g. Bullseye), you shoul
 ```
 $ sudo tail -f /var/log/syslog
 ```
+
+## Adding Newest Bluetooth library to Raspberry Pi
+
+The stock Raspberry Pi distribution does come with a fairly recent version of the Bluetooth library. To install the latest version, you will need to build and install it manually from the command line. The following commands can be used to build and install the library. Visit https://mirrors.edge.kernel.org/pub/linux/bluetooth/ for a list of all supported bluetooth library versions. As of this writing, 5.75 is the latest version, released in April 2024.
+
+```
+$ cd Downloads/
+$ wget https://mirrors.edge.kernel.org/pub/linux/bluetooth/bluez-5.75.tar.gz
+$ tar xvf bluez-5.75.tar.gz 
+$ sudo apt update
+$ sudo apt install -y libusb-dev libreadline-dev libglib2.0-dev libudev-dev libdbus-1-dev libical-dev
+$ cd bluez-5.75/
+$ ./configure --enable-library
+$ make -j4
+$ sudo make install
+$ sudo reboot now
+```
+

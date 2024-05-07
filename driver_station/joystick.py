@@ -46,6 +46,7 @@ class Joystick:
 
     def __init__(self, path=None):
         self.gamepad = None
+        self.terminate_read_loop = False
 
         while not self.gamepad:
             if path:
@@ -78,7 +79,7 @@ class Joystick:
             if axis:
                 decoded_event['name'] = axis['name']
                 decoded_event['value'] = event.value / axis['max']
-                decoded_event['rounded_value'] = round((event.value / axis['max']), 2)
+                decoded_event['rounded_value'] = round((event.value / axis['max']), 1)
 
         return decoded_event
 
@@ -96,6 +97,10 @@ class Joystick:
             else:
                 logger.info( 'Unknown Event Type: %d, Code: %d, Value: %f' % (event.type, event.code, event.value) )
 
+            # if something has set the terminate flag on this instance, then break out of the read loop and return
+            if self.terminate_read_loop:
+                break
+
 def get_joysticks():
     joysticks = []
     devices = [InputDevice(path) for path in list_devices()]
@@ -111,7 +116,9 @@ def print_devices():
         print( '\t%s' % str(device) )
 
 def read_thread( joystick ):
+    print( 'Starting read loop...' ) 
     joystick.read()
+    print( 'Read loop returned.' ) 
 
 if __name__ == '__main__':
     logger.setLevel(logging.DEBUG)
@@ -127,20 +134,26 @@ if __name__ == '__main__':
         print_devices()
         sys.exit(0)
 
+    joysticks = list()
     service_threads = list()
-    joysticks = get_joysticks()
-    for device in joysticks:
-        joystick = Joystick(path = device.path)
-        logger.info( 'Creating service thread for %s' % device.path )
+    controllers = get_joysticks()
+    for controller in controllers:
+        joystick = Joystick(path = controller.path)
+        logger.info( 'Creating service thread for %s' % controller.path )
         x = threading.Thread( target=read_thread, args=(joystick,), daemon=True )
         service_threads.append( x )
+        joysticks.append(joystick)
         x.start()
 
-
-    for index, thread in enumerate(service_threads):
+    done = False
+    while not done:
         try:
-            logger.info( 'Joining Service thread %d' % index )
-            thread.join()
-            logger.info( 'Service thread %d complete' % index )
+            time.sleep(1)
         except KeyboardInterrupt:
-            break
+            done = True
+            print( 'Terminating joystick service threads' )
+            for joystick in joysticks:
+                joystick.terminate_read_loop = True
+
+    time.sleep(2)
+    print( 'Joystick servicing terminated' )
