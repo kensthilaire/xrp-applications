@@ -12,6 +12,8 @@ import time
 import urequests as requests
 import _thread
 
+from ble_uart_stream import BLEUARTStream
+
 #
 # Function to read a JSON formatted config file with the XRP configuration
 # information to set up the network interface and other control parameters
@@ -30,10 +32,12 @@ def read_config( filename='config.json' ):
 # Function to retrieve a string representation of the unique hardware ID 
 # of the connected XRP
 #
-def get_id():
+def get_id(short_id=False):
     id = ''
     s = machine.unique_id()
     for b in s : id += str(hex(b)[2:])
+    if short_id:
+        id = id[11:]
     return id
     
 
@@ -63,6 +67,27 @@ control_events = {
     'RightTrigger':   { 'type': 'AXIS',   'enabled': True  },
     'HatX':           { 'type': 'AXIS',   'enabled': True  },
     'HatY':           { 'type': 'AXIS',   'enabled': True  }
+}
+
+event_map = {
+    'BA': 'ButtonA',
+    'BB': 'ButtonB',
+    'BX': 'ButtonX',
+    'BY': 'ButtonY',
+    'LB': 'LeftBumper',
+    'RB': 'RightBumper',
+    'SEL': 'Select',
+    'ST': 'Start',
+    'LTH': 'LeftThumb',
+    'RTH': 'RightThumb',
+    'LX': 'LeftJoystickX',
+    'LY': 'LeftJoystickY',
+    'LT': 'LeftTrigger',
+    'RX': 'RightJoystickX',
+    'RY': 'RightJoystickY',
+    'RT': 'RightTrigger',
+    'HX': 'HatX',
+    'HY': 'HatY'
 }
 
 #
@@ -100,8 +125,8 @@ class XrpControl():
         self.status_reported = 0
         self.application = application
         
-        # initialize the network sockets that we'll use to read command data
-        self.initialize_sockets()
+        # initialize the server that we'll use to read command data from client devices
+        self.initialize_server()
 
         # if an FMS is configured, then attempt to register this device with the FMS
         self.fms_configured = False
@@ -197,7 +222,7 @@ class XrpControl():
             sys.exit(0)
 
     #
-    # Function will initialize the local listening socket based on the configuration. Two types of
+    # Function will initialize the local server socket based on the configuration. Two types of
     # sockets are supported: UDP (User Datagram Protocol) and TCP (Transmission Control Protocol). 
     # UDP sockets are connectionless and provide an efficient way to pass data. UDP sockets are 
     # "unreliable" in that delivery is not guaranteed, so some packet loss may occur. TCP sockets, on 
@@ -208,7 +233,7 @@ class XrpControl():
     # short messages between the driver station control application and the XRP, so the observed behavior
     # will likely be similar between the two socket protocols.
     # 
-    def initialize_sockets(self):
+    def initialize_server(self):
         server_config = self.config['server']
         self.my_port = server_config['listening_port']
 
@@ -229,6 +254,11 @@ class XrpControl():
             self.socket.listen(1)
             print( 'Created TCP socket to listen for connections on %s:%d' % (self.my_ipaddr, self.my_port) )
             self.status = 'Waiting For Connection'
+        elif server_config['socket_type'] == 'BLUETOOTH':
+            self.connection = None
+            self.read_commands = self.read_bluetooth_commands
+            print( 'Advertising BLUETOOTH service for %s' % server_config['name'])
+            self.ble_stream = BLEUARTStream( server_config['name'] )
         else:
             print( 'Unknown socket type: %s' % server_config['socket_type'])
 
@@ -272,7 +302,7 @@ class XrpControl():
             decoded_data = self.partial_cmd_buffer + data.decode('utf-8')
             
             if decoded_data:
-                print( 'Decoded Received: ', decoded_data )
+                #print( 'Decoded Received: ', decoded_data )
 
                 # split the decoded data into separate commands delimited by a newline
                 commands = decoded_data.split('\n')
@@ -292,6 +322,24 @@ class XrpControl():
             commands = ['ReadTimeout']
         return commands
 
+    def read_bluetooth_commands(self):
+        commands = []
+        data = bytearray(32)
+        bytes_read = self.ble_stream.readinto(data)
+        if bytes_read:
+            decoded_data = self.partial_cmd_buffer + data[0:bytes_read].decode('utf-8')
+            # split the decoded data into separate commands delimited by a newline
+            commands = decoded_data.split('\n')
+
+            # for Bluetooth connections, each read will only contain up to 20 bytes, so the
+            # data may contain a partial command, which will be the last item in the commands
+            # list. We'll store that last item as the partial command so that we can attach the
+            # next received data to the partial command string.
+            self.partial_cmd_buffer = commands.pop()
+
+        return commands
+
+
     #
     # Function represents the main processing loop for the XRP controller. This function 
     # reads commands from the network interface and invokes the command procesing to 
@@ -306,10 +354,15 @@ class XrpControl():
             # read commands from the network interface and process them
             commands = self.read_commands()
             for command in commands:
+                #print( 'Command: %s' % command )
                 tokens = command.split(':')
-                if tokens[0] == 'Event':
+                if tokens[0] == 'Event' or tokens[0] == 'EV':
                     self.status = 'Processing Command'
-                    self.process_event( tokens[1], tokens[2:] )
+                    try:
+                        event = event_map[tokens[1]]
+                    except KeyError:
+                        event = tokens[1]
+                    self.process_event( event, tokens[2:] )
                 elif command == 'ReadTimeout':
                     # If the read times out, then no commands have been received from the
                     # driver station in awhile. We have seen the drive station not totally 
@@ -334,9 +387,13 @@ class XrpControl():
             self.current_speed = float(args[0]) * -1.0
             # update the drivetrain with the new speed and turn settings
             drivetrain.arcade( self.current_speed, self.current_turn )
-        elif event == 'RightJoystickX':
+        elif event == 'RightJoystickX' or event == 'LeftJoystickX':
             # save off the current turning setting for reference
-            self.current_turn = float(args[0]) * -1.0
+            if self.current_speed != 0.0:
+                self.current_turn = float(args[0]) * -1.0 * 0.3
+            else:
+                self.current_turn = float(args[0]) * -1.0
+
             # update the drivetrain with the new speed and turn settings
             drivetrain.arcade( self.current_speed, self.current_turn )
         elif event == 'LeftBumper':
@@ -389,6 +446,8 @@ class XrpControl():
         reg_data['application'] = self.application
         reg_data['version'] = '1.0 Beta'
         reg_data['status'] = self.status
+        reg_data['ble_service'] = 'XRP-' + get_id(short_id=True)
+
         # Add in the name if configured (optional)
         try:
             reg_data['name'] = self.config['name']
@@ -419,7 +478,7 @@ class XrpControl():
     #
     def send_status(self):
         curr_time = time.time()
-        if (curr_time-self.status_reported) > 30:
+        if (curr_time-self.status_reported) > 30 and self.registered:
             print( 'Sending Status...')
             data = {}
             data['hardware_id'] = self.id

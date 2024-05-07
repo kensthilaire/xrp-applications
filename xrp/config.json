@@ -14,6 +14,7 @@
         }
     ],
     "server" : {
+        "name": "<optional name>",
         "socket_type": "TCP",
         "listening_port": 9999
     }
