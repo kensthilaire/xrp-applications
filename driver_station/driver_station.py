@@ -11,6 +11,8 @@ import sys
 import threading
 import time
 
+from bluetooth_manager import BluetoothManager
+
 from config import read_config
 
 from logger import logger
@@ -64,6 +66,7 @@ class DriverStation():
                 # the first available instance
                 for fms in fms_config:
                     if fms.get('enabled', False) == True:
+
                         if self.register( fms ) != None:
                             self.fms = fms
                             self.scheduler.every(30).seconds.do(self.send_status)
@@ -71,6 +74,9 @@ class DriverStation():
                 if not self.fms:
                     logger.error( 'No FMS available, will try again in 30 seconds' )
                     time.sleep(30)
+
+        if self.config.get('bluetooth',False) == True:
+            self.ble_manager = BluetoothManager()
 
         self.status_reported = 0
         self.status = 'Running'
@@ -91,7 +97,7 @@ class DriverStation():
         if self.fms:
             logger.info( 'Driver Station Already Registered With FMS...')
         else:
-            logger.info( 'Registering Device With FMS...')
+            logger.info( 'Registering Device With FMS at %s' % fms['url_base'] )
             data = {}
             data['hardware_id'] = self.config.get('uuid', 'No UUID')
             data['type'] = 'Driver Station'
@@ -101,6 +107,7 @@ class DriverStation():
             data['protocol'] = 'n/a'
             data['application'] = 'Driver Station App'
             data['version'] = '0.1'
+            data['ble_service'] = 'n/a'
 
             url = '%s/register/' % fms['url_base']
             headers = {'Content-type': 'application/json'}
@@ -113,6 +120,7 @@ class DriverStation():
                 else:
                     logger.error( 'Error Registering With FMS: %d' % resp.status_code )
             except OSError:
+                self.fms = None
                 logger.error( 'Error Registering With FMS at %s, Check if FMS is running or correct IP address' % fms['url_base'] )
 
         return self.fms
@@ -209,17 +217,17 @@ class DriverStation():
                 protocol = device.get('protocol', 'UDP').upper()
                 host = device.get('ip_address', None)
                 try:
-                    port = int(device['port']
+                    port = int(device['port'])
                 except KeyError:
                     port = None
                 
-                if type == 'BLUETOOTH':
-                    logger.info( 'Creating %s connection for %s to controller: %s' % (type,device['name'],controller.path) )
+                if protocol == 'BLUETOOTH':
+                    logger.info( 'Creating %s connection for %s to controller: %s' % (protocol,device['name'],controller.path) )
                 else:
                     logger.info( 'Creating %s connection for  %s at address: %s:%s to controller: %s' % \
-                              (type,device['name'],device['ip_address'],device['port'],controller.path) )
+                              (protocol,device['name'],device['ip_address'],device['port'],controller.path) )
 
-                controller_instance = XrpController(path=controller.path, protocol=protocol, host=host, port=port)
+                controller_instance = XrpController(path=controller.path, name=device['name'], protocol=protocol, host=host, port=port, ble_manager=self.ble_manager)
                 device['controller'] = controller_instance
                 control_thread = threading.Thread( target=ds_controller_service, args=(self,device,controller_instance,), daemon=True )
                 device['thread'] = control_thread
@@ -268,9 +276,16 @@ class DriverStation():
             if not found:
                 logger.info( 'Found new device: %s, queuing for connection' % (curr_device['hardware_id']) )
                 self.devices.append(curr_device)
+                if self.ble_manager:
+                    self.ble_manager.add_device_to_scan(curr_device['name'])
             else:
                 # Update any parameters and look for meaningful changes
+                if device['name'] != curr_device['name']:
+                    if self.ble_manager:
+                        self.ble_manager.remove_device_from_scan(device['name'])
+                        self.ble_manager.add_device_to_scan(curr_device['name'])
                 device['name'] = curr_device['name']
+
                 if device['ip_address'] != curr_device['ip_address']:
                     self.remove_device( device, 'IP address is different (%s vs %s), terminating connection' % \
                                         (device['ip_address'],curr_device['ip_address']) )
@@ -313,9 +328,13 @@ class DriverStation():
         controller = device.get('controller', None)
         if controller:
             controller.terminate_read_loop = True
-        self.devices.remove( device )
-
-                
+        if self.ble_manager:
+            self.ble_manager.remove_device_from_scan(device['name'])
+        try:
+            self.devices.remove( device )
+        except ValueError:
+            pass
+ 
 #
 # Signal handler for the signals to gracefully terminate the service
 #

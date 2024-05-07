@@ -9,7 +9,8 @@ import sys
 import threading
 import time
 
-from adafruit_ble import BLERadio
+from bluetooth_manager import BluetoothManager
+
 from adafruit_ble.services.nordic import UARTService
 from bleak.exc import BleakError, BleakDBusError
 
@@ -43,15 +44,16 @@ controls = {
     'HatY':           { 'abbr': 'HY', 'type': 'AXIS',   'enabled': True  }
 }                   
 
+
 #
 # class to implement the XRP controller. This class is derived from the Joystick class
 # and supports an Xbox Controller connected via USB to a Raspberry Pi
 #
 class XrpController(Joystick):
-    def __init__(self, path=None, name='NoName', protocol='UDP', host='', port=9999):
+    def __init__(self, path=None, name='NoName', protocol='UDP', host='', port=9999, ble_manager=None):
         super().__init__(path)
 
-        self.shutdown = False
+        self.shutdown_flag = False
 
         self.path = path
         self.name = name
@@ -63,8 +65,7 @@ class XrpController(Joystick):
 
         self.curr_values = {}
 
-        if self.protocol == 'BLUETOOTH':
-            self.ble = BLERadio()
+        self.ble_manager = ble_manager
 
 
     def __str__(self):
@@ -102,31 +103,33 @@ class XrpController(Joystick):
                     err = 'XRP TCP Connection Error'
                     break
         elif self.protocol == 'BLUETOOTH':
-            while True:
-                logger.info( 'Scanning For Bluetooth Device: %s' % (self.name) )
+            while self.shutdown_flag == False:
                 self.connection = None
-                for entry in self.ble.start_scan(timeout=60, minimum_rssi=-80):
-                    if entry.complete_name == self.name:
-                        self.connection = self.ble.connect(entry)
-                        self.ble.stop_scan()
-                        break
+                logger.info( 'Finding Bluetooth Device: %s' % (self.name) )
+                device_entry = self.ble_manager.get_device(self.name)
+                if device_entry:
+                    logger.debug('Bluetooth Device Found: %s' % (self.name) )
+                    self.connection = self.ble_manager.connect_device(device_entry)
 
-                if self.connection:
-                    if UARTService in self.connection:
-                        logger.info( 'Connected To Bluetooth Device: %s' % (self.name) )
-                        self.uart_service = self.connection[UARTService]
+                    if self.connection:
+                        if UARTService in self.connection:
+                            logger.info( 'Connected To Bluetooth Device: %s' % (self.name) )
+                            self.uart_service = self.connection[UARTService]
+                        else:
+                            logger.info( 'Bluetooth Device: %s Does NOT Support UART Service' % (self.name) )
+                            self.connection.disconnect()
+                            self.uart_service = None
+                            connected = False
+                            err = 'UART Service Not Supported'
+                        break
                     else:
-                        logger.info( 'Bluetooth Device: %s Does NOT Support UART Service' % (self.name) )
-                        self.connection.disconnect()
-                        self.uart_service = None
+                        logger.info( 'Could Not Establish Connection To Bluetooth Device: %s' % (self.name) )
                         connected = False
-                        err = 'UART Service Not Supported'
-                    break
+                        err = 'XRP Bluetooth Connection Error'
+                        break
                 else:
-                    logger.info( 'Could Not Establish Connection To Bluetooth Device: %s' % (self.name) )
-                    connected = False
-                    err = 'XRP Bluetooth Connection Error'
-                    break
+                    logger.debug('Bluetooth Device %s Not Discovered' % self.name)
+                    time.sleep(2)
         else:
             err = 'Unknown Protocol Type: %s' % (self.protocol)
             logger.error( err )
@@ -135,12 +138,9 @@ class XrpController(Joystick):
         return connected,err
 
     def shutdown( self, *args ):
+        self.shutdown_flag = True
         self.terminate_read_loop = True
-        time.sleep(2)
-
-        self.shutdown = True
         logger.info( 'Shutdown complete.' )
-        #sys.exit(0)
 
     def send_event( self, event ):
         command = None
@@ -159,9 +159,10 @@ class XrpController(Joystick):
                     # As a way to reduce the packets being sent to the XRP, only send changes
                     # to the most recent value and only send even values
                     #
-                    # This event values only helps with response time and testing has not shown any
-                    # real adverse behavior. But, as we refine the packet interface between the
-                    # control application and the XRP, we may remove this even number constraint 
+                    # Reducing the transmitted packets helps with response time and reduces
+                    # controller lag. As we refine the packet intereface between the control 
+                    # application and the XRP to increase the throughput, we may remove the
+                    # packet throughput constraints 
                     if value == self.curr_values.get(name,0) or int(value*10) % 2 != 0:
                         return
                     self.curr_values[name] = value
@@ -211,9 +212,10 @@ class XrpController(Joystick):
                 except BleakError:
                     logger.error( 'Bluetooth Connection Lost to %s, Restablishing connection' % (self.name) )
                     attempts = 0
+                    connected = False
                     while not connected and attempts < 5:
                         try:
-                            connected, err = controller.initialize_client()
+                            connected, err = self.initialize_client()
                         except AttributeError:
                             logger.debug('Attribute error, delay then retry')
                             time.sleep(1)
@@ -222,9 +224,7 @@ class XrpController(Joystick):
                             # this error may be generated if we attempt to scan for multiple XRP devices over 
                             # bluetooth at the same time. The solution for now is to catch the exception and
                             # retry after a slight delay
-                            delay = random.randint(5,10)
-                            logger.debug('Pausing %d seconds before reattempting connect attempt', delay)
-                            time.sleep(delay)
+                            time.sleep(1)
                             attempts += 1
                     if not connected:
                         logger.info( 'Connection Could Not Be Restablished, terminating joystick processing' )
@@ -239,7 +239,6 @@ class XrpController(Joystick):
 
         return err
 
-mutex = threading.Lock()
 
 #
 # Simple service routine that invokes the controller method that runs the joystick control loop
@@ -250,21 +249,20 @@ def controller_service( controller ):
 
     connected = False
     while not connected:
-        with mutex:
-            try:
-                connected, err = controller.initialize_client()
-            except AttributeError:
-                logger.debug('Attribute error, delay then retry')
-            except BleakDBusError:
-                # this error may be generated if we attempt to scan for multiple XRP devices over 
-                # bluetooth at the same time. The solution for now is to catch the exception and
-                # retry after a slight delay
-                logger.debug('Pausing to allow other Bluetooth connections')
+        try:
+            connected, err = controller.initialize_client()
+        except AttributeError:
+            logger.debug('Attribute error, delay then retry')
+        except BleakDBusError:
+            # this error may be generated if we attempt to scan for multiple XRP devices over 
+            # bluetooth at the same time. The solution for now is to catch the exception and
+            # retry after a slight delay
+            logger.debug('Bleak DBus Error: Pausing to allow other Bluetooth connections')
 
-            if not connected:
-                delay = random.randint(5,10)
-                logger.debug('Pausing %d seconds to allow other connections' % delay)
-                time.sleep(delay)
+        if not connected:
+            delay = random.randint(5,10)
+            logger.debug('Pausing %d seconds to allow other connections' % delay)
+            time.sleep(delay)
 
     if connected:
         err = controller.joystick_control()
@@ -277,13 +275,16 @@ def controller_service( controller ):
 #
 def shutdown_handler(signum, frame):
     shutdown_all()
+    time.sleep(3)
     sys.exit(0)
 
 def shutdown_all():
     logger.info( 'Terminating controller service threads' )
+    shutdown_flag = True
     for controller in xrp_controllers:
-        controller.terminate_read_loop = True
-    time.sleep(2)
+        controller.shutdown()
+    if ble_manager:
+        ble_manager.shutdown()
 
 if __name__ == '__main__':
 
@@ -295,6 +296,7 @@ if __name__ == '__main__':
     # parse out the command arguments
     #
     parser = argparse.ArgumentParser()
+    parser.add_argument('-b', '--bluetooth', action='store_true', dest='bluetooth', default=False)
     parser.add_argument('-d', '--debug', action='store_true', dest='debug', default=False)
     parser.add_argument('-c', '--config', action='store', dest='config', default='config.json')
     parser.add_argument('-p', '--port', action='store', dest='port', default='9999')
@@ -327,6 +329,12 @@ if __name__ == '__main__':
         xrp_devices = config.get('devices', list())
         logger.debug( 'Number of configured devices: %d' % len(xrp_devices) )
 
+    ble_manager = None
+    if options.bluetooth or config.get('bluetooth',False) == True:
+        ble_manager = BluetoothManager()
+
+        for device in xrp_devices:
+            ble_manager.add_device_to_scan(device.get('name', 'NoName'))
     #
     # retrieve the list of joystick devices that are connected to this controller and 
     # create an XRP controller instance to associate with the joysticks.
@@ -351,7 +359,7 @@ if __name__ == '__main__':
                     xrp_protocol = options.protocol.upper()
 
                 # Create the XRP controller instance
-                controller = XrpController(path=joystick.path, name=xrp_name, protocol=xrp_protocol, host=xrp_ipaddr, port=xrp_port)
+                controller = XrpController(path=joystick.path, name=xrp_name, protocol=xrp_protocol, host=xrp_ipaddr, port=xrp_port, ble_manager=ble_manager)
                 controller_thread = threading.Thread( target=controller_service, args=(controller,), daemon=True )
                 xrp_controllers.append( controller )
                 controller_thread.start()
@@ -361,6 +369,7 @@ if __name__ == '__main__':
             time.sleep(1)
         except KeyboardInterrupt:
             logger.info( 'Initiating shutdown from keyboard' )
+            ble_manager.shutdown()
             shutdown_all()
         
     print( 'XRP Control application terminated.' )
