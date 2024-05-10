@@ -2,7 +2,10 @@
 # available variables from defaults: left_motor, right_motor, drivetrain,
 #      imu, rangefinder, reflectance, servo_one, board, webserver
 from XRPLib.defaults import *
+from XRPLib.pid import PID
 
+
+import asyncio
 import json
 import machine
 import network
@@ -113,6 +116,8 @@ class XrpControl():
         # initialize some variables used to control the robot
         self.current_speed = 0.0
         self.current_turn = 0.0
+        self.desired_heading = 0.0
+        self.reset_heading = True
         self.partial_cmd_buffer = ''
         
         self.max_angle = 180
@@ -125,9 +130,6 @@ class XrpControl():
         self.status_reported = 0
         self.application = application
         
-        # initialize the server that we'll use to read command data from client devices
-        self.initialize_server()
-
         # if an FMS is configured, then attempt to register this device with the FMS
         self.fms_configured = False
         fms_config = self.config.get('fms', None)
@@ -137,6 +139,11 @@ class XrpControl():
                     self.fms_configured = True
                     if self.register(fms['url_base']) == True:
                         break
+
+        self.imu_assist = False
+        xrp_settings = self.config.get('settings', None)
+        if xrp_settings:
+            self.imu_assist = xrp_settings.get('imu_assist', False)
 
     #
     # Utility function that will set the angle of the selected servo, saving
@@ -233,7 +240,7 @@ class XrpControl():
     # short messages between the driver station control application and the XRP, so the observed behavior
     # will likely be similar between the two socket protocols.
     # 
-    def initialize_server(self):
+    async def server_task(self):
         server_config = self.config['server']
         self.my_port = server_config['listening_port']
 
@@ -245,13 +252,7 @@ class XrpControl():
             self.socket.settimeout(5)
             print( 'Created UDP socket to receive commands')
         elif server_config['socket_type'] == 'TCP':
-            self.connection = None
-            self.read_commands = self.read_tcp_commands
-
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self.socket.bind( (self.my_ipaddr, self.my_port) )
-            self.socket.listen(1)
+            self.server = await asyncio.start_server(self.handle_tcp_client, self.my_ipaddr, self.my_port)
             print( 'Created TCP socket to listen for connections on %s:%d' % (self.my_ipaddr, self.my_port) )
             self.status = 'Waiting For Connection'
         elif server_config['socket_type'] == 'BLUETOOTH':
@@ -261,7 +262,7 @@ class XrpControl():
             self.ble_stream = BLEUARTStream( server_config['name'] )
         else:
             print( 'Unknown socket type: %s' % server_config['socket_type'])
-
+    
     #
     # Set of functions that read from the network and return the command and data associated with the
     # command.
@@ -286,41 +287,42 @@ class XrpControl():
             commands = ['ReadTimeout']
         return commands
 
-    def read_tcp_commands(self):
+    def handle_tcp_client(self, rx_stream, tx_stream):
         commands = []
-        try:
-            if not self.connection:
-                print( 'Waiting For Connection From XRP Controller...')
-                self.connection, self.client_address = self.socket.accept()
-                self.connection.settimeout(5)
-                print( 'Connection accepted from %s' % str(self.client_address))
-                self.status = 'Connected'
 
-            data=self.connection.recv(1024)
-            #print( 'Received: ', str(data) )
-
-            decoded_data = self.partial_cmd_buffer + data.decode('utf-8')
+        self.status = 'Connected'
+        print( 'TCP Connection Established From: %s' % rx_stream.get_extra_info('peername')[0])
+        while True:
+            try:
+                data = await asyncio.wait_for(rx_stream.readline(), 5)
+                decoded_data = self.partial_cmd_buffer + data.decode('utf-8')
             
-            if decoded_data:
-                #print( 'Decoded Received: ', decoded_data )
+                if decoded_data:
+                    print( 'Decoded Received: ', decoded_data )
 
-                # split the decoded data into separate commands delimited by a newline
-                commands = decoded_data.split('\n')
+                    # split the decoded data into separate commands delimited by a newline
+                    commands = decoded_data.split('\n')
 
-                # for TCP connections, it is possible that the received data may contain a partial
-                # command, which will be the last item in the commands list. We'll store that last
-                # item as the partial command so that we can attach the next received data to the
-                # partial command string.
-                self.partial_cmd_buffer = commands.pop()
-            else:
-                print( 'Client connection error, closing socket')
-                self.connection.close()
-                self.connection = None
-                self.status = 'TCP Connection Closed'
+                    # for TCP connections, it is possible that the received data may contain a partial
+                    # command, which will be the last item in the commands list. We'll store that last
+                    # item as the partial command so that we can attach the next received data to the
+                    # partial command string.
+                    self.partial_cmd_buffer = commands.pop()
+                else:
+                    print( 'TCP Client Connection Error, Closing Socket' )
+                    raise OSError
+                    
+            except asyncio.TimeoutError:
+                print( 'Read Timeout' )
+                commands = ['ReadTimeout']
+
+            except OSError:
+                await rx_stream.wait_closed()
+                self.status = 'Disconnected'
                 self.stop_movement()
-        except OSError:
-            commands = ['ReadTimeout']
-        return commands
+                break
+            
+            self.process_commands( commands )
 
     def read_bluetooth_commands(self):
         commands = []
@@ -339,40 +341,29 @@ class XrpControl():
 
         return commands
 
+    def process_commands(self, commands ):
+        for command in commands:
+            #print( 'Command: %s' % command )
+            tokens = command.split(':')
+            if tokens[0] == 'Event' or tokens[0] == 'EV':
+                self.status = 'Processing Command'
+                try:
+                    event = event_map[tokens[1]]
+                except KeyError:
+                    event = tokens[1]
+                self.process_event( event, tokens[2:] )
+            elif command == 'ReadTimeout':
+                # If the read times out, then no commands have been received from the
+                # driver station in awhile. We have seen the drive station not totally 
+                # zero the speed/turn when the controls are released and this clause 
+                # will handle that condition and stop any residual motion.
+                self.stop_movement()
+                self.status = 'Waiting For Command'
+            else:
+                print('Ignoring Unexpected Command Type: %s, Args: %s' % (tokens[0],str(tokens[1:])) )
 
-    #
-    # Function represents the main processing loop for the XRP controller. This function 
-    # reads commands from the network interface and invokes the command procesing to 
-    # control the robot.
-    #
-    def run(self):
-        while True:
-            # Send the status every so often to the FMS if configured
-            if self.fms_configured:
-                self.send_status()
-            
-            # read commands from the network interface and process them
-            commands = self.read_commands()
-            for command in commands:
-                #print( 'Command: %s' % command )
-                tokens = command.split(':')
-                if tokens[0] == 'Event' or tokens[0] == 'EV':
-                    self.status = 'Processing Command'
-                    try:
-                        event = event_map[tokens[1]]
-                    except KeyError:
-                        event = tokens[1]
-                    self.process_event( event, tokens[2:] )
-                elif command == 'ReadTimeout':
-                    # If the read times out, then no commands have been received from the
-                    # driver station in awhile. We have seen the drive station not totally 
-                    # zero the speed/turn when the controls are released and this clause 
-                    # will handle that condition and stop any residual motion.
-                    self.stop_movement()
-                    self.status = 'Waiting For Command'
-                else:
-                    print('Ignoring Unexpected Command Type: %s, Args: %s' % (tokens[0],str(tokens[1:])) )
-
+    # 
+    # Function to periodically send status to a configured FMS
     #
     # Function processes the Event command, interpreting the event type and 
     # invoking the appropriate robot control behavior specified by the event
@@ -383,19 +374,27 @@ class XrpControl():
     def process_event( self, event, args ):
         #print( 'Processing Event: %s, Args %s' % (event,str(args)))
         if event == 'LeftJoystickY':
-            # save off the current speed for reference
             self.current_speed = float(args[0]) * -1.0
-            # update the drivetrain with the new speed and turn settings
-            drivetrain.arcade( self.current_speed, self.current_turn )
         elif event == 'RightJoystickX' or event == 'LeftJoystickX':
-            # save off the current turning setting for reference
             if self.current_speed != 0.0:
-                self.current_turn = float(args[0]) * -1.0 * 0.3
+                # if we are currently moving forward or backward, let's dampen the
+                # turn amount so that it's less abrupt
+                dampened_turn = float(args[0]) * 0.3
             else:
-                self.current_turn = float(args[0]) * -1.0
+                dampened_turn = float(args[0])
+            
+            # and if we are going backwards, let's flip the direction of the
+            # turn so that the robot will move in a natural direction
+            if self.current_speed < 0.0:
+                self.current_turn = dampened_turn
+            else:
+                self.current_turn = dampened_turn * -1.0
 
-            # update the drivetrain with the new speed and turn settings
-            drivetrain.arcade( self.current_speed, self.current_turn )
+            # if the current turning setting returns to zero, signal to the drive
+            # task to update the heading to the current yaw position
+            if self.current_turn == 0.0:
+                self.reset_heading = True
+                
         elif event == 'LeftBumper':
             # Open (lower) the arm when the left bumper is pressed
             if int(args[0]) == 1:
@@ -412,9 +411,41 @@ class XrpControl():
             if int(args[0]) == 1:
                 print( 'Selecting Servo Two' )
                 self.curr_servo = 1
+        elif event == 'ButtonY':
+            if int(args[0]) == 1:
+                if not self.imu_assist:
+                    print( 'Enabling IMU Assist' )
+                    self.imu_assist = True
+                else:
+                    print( 'Disabling IMU Assist' )
+                    self.imu_assist = False
         else:
             # add more event handling operations here...
             pass
+
+    async def drive_task(self):
+        # initialize the PID controller for imu_assist driving when enabled
+        imu_pid = PID(kp = 0.075, kd=0.001,)
+
+        while True:
+            if self.imu_assist == False:
+                # if the IMU assist is disabled, then just run the standard 
+                # arcade drive
+                drivetrain.arcade( self.current_speed, self.current_turn )
+            else:
+                # else if IMU assist is enabled, then use the IMU with PID to
+                # maintain a set heading while driving.
+                if self.current_speed == 0.0 or self.current_turn != 0.0:
+                    drivetrain.arcade( self.current_speed, self.current_turn )
+                else:
+                    if self.reset_heading:
+                        self.reset_heading = False
+                        self.desired_heading = imu.get_yaw()
+
+                    heading_correction = imu_pid.update(self.desired_heading - imu.get_yaw())
+                    drivetrain.set_effort(self.current_speed - heading_correction, self.current_speed + heading_correction)
+            
+            await asyncio.sleep_ms(50)
 
     #
     # Simple function for force the XRP to stop moving. This function is used to handle cases
@@ -423,7 +454,6 @@ class XrpControl():
     def stop_movement(self):
         self.current_speed = 0.0
         self.current_turn = 0.0
-        drivetrain.arcade( self.current_speed, self.current_turn )
 
     #
     # Function to register this device with a configured FMS
@@ -467,7 +497,22 @@ class XrpControl():
         except OSError:
             print( 'Error Connecting To FMS: %s' % url_base )
         return self.registered
+
+
+    #
+    # Function represents the main processing loop for the XRP controller. This function 
+    # reads commands from the network interface and invokes the command procesing to 
+    # control the robot.
+    #
+    async def run(self):
+        asyncio.create_task(self.drive_task())
+        asyncio.create_task(self.server_task())
+        asyncio.create_task(self.status_task())
         
+        while True:
+            await asyncio.sleep(10)
+            print( 'Main Run Loop')
+            
     # 
     # Function to periodically send status to a configured FMS
     #
@@ -476,26 +521,33 @@ class XrpControl():
     #
     # This message will be expanded over time to convey more information to the FMS 
     #
-    def send_status(self):
-        curr_time = time.time()
-        if (curr_time-self.status_reported) > 30 and self.registered:
-            print( 'Sending Status...')
-            data = {}
-            data['hardware_id'] = self.id
-            data['status'] = self.status
+    async def status_task(self):
+        print( 'Starting Status Reporting Loop')
 
-            url = '%s/status/' % self.fms_url_base
-            headers = {'Content-type': 'application/json'}
-            try:
-                resp = requests.post(url, data=json.dumps(data), headers=headers)
-                if resp.status_code == 200:
-                    print( 'Status Sent' )
-                else:
-                    print( 'Error Sending Status To FMS: %d' % resp.status_code )
-                self.status_reported = curr_time
+        while True:
+            # Send the status every so often to the FMS if configured
+            if self.fms_configured and self.registerd:
+                print( 'Sending Status...')
+                data = {}
+                data['hardware_id'] = self.id
+                data['status'] = self.status
 
-            except OSError:
-                print( 'Error Connecting To FMS')
+                url = '%s/status/' % self.fms_url_base
+                headers = {'Content-type': 'application/json'}
+                try:
+                    resp = requests.post(url, data=json.dumps(data), headers=headers)
+                    if resp.status_code == 200:
+                        print( 'Status Sent' )
+                    else:
+                        print( 'Error Sending Status To FMS: %d' % resp.status_code )
+                    self.status_reported = curr_time
+
+                except OSError:
+                    print( 'Error Connecting To FMS')
+            else:
+                print('Nothing To Report')
+                
+            await asyncio.sleep(15)
 
 
 if __name__ == '__main__':
@@ -507,4 +559,4 @@ if __name__ == '__main__':
     controller = XrpControl( config )
     if controller:
         print( 'Starting Controller Main Loop...')
-        controller.run()
+        asyncio.run(controller.run())
