@@ -129,6 +129,7 @@ class XrpControl():
         self.shutdown = False
         self.status_reported = 0
         self.application = application
+        self.ble_connection = 'Uninitialized'
         
         # if an FMS is configured, then attempt to register this device with the FMS
         self.fms_configured = False
@@ -256,10 +257,9 @@ class XrpControl():
             print( 'Created TCP socket to listen for connections on %s:%d' % (self.my_ipaddr, self.my_port) )
             self.status = 'Waiting For Connection'
         elif server_config['socket_type'] == 'BLUETOOTH':
-            self.connection = None
-            self.read_commands = self.read_bluetooth_commands
-            print( 'Advertising BLUETOOTH service for %s' % server_config['name'])
+            print( 'Initializing BLUETOOTH service for %s' % server_config['name'])
             self.ble_stream = BLEUARTStream( server_config['name'] )
+            await self.handle_bluetooth_client()
         else:
             print( 'Unknown socket type: %s' % server_config['socket_type'])
     
@@ -317,29 +317,50 @@ class XrpControl():
                 commands = ['ReadTimeout']
 
             except OSError:
+                self.stop_movement()
                 await rx_stream.wait_closed()
                 self.status = 'Disconnected'
-                self.stop_movement()
                 break
             
             self.process_commands( commands )
-
-    def read_bluetooth_commands(self):
+    
+    async def handle_bluetooth_client(self):
         commands = []
         data = bytearray(32)
-        bytes_read = self.ble_stream.readinto(data)
-        if bytes_read:
-            decoded_data = self.partial_cmd_buffer + data[0:bytes_read].decode('utf-8')
-            # split the decoded data into separate commands delimited by a newline
-            commands = decoded_data.split('\n')
+        self.ble_connection = 'Disconnected'
 
-            # for Bluetooth connections, each read will only contain up to 20 bytes, so the
-            # data may contain a partial command, which will be the last item in the commands
-            # list. We'll store that last item as the partial command so that we can attach the
-            # next received data to the partial command string.
-            self.partial_cmd_buffer = commands.pop()
+        print( 'Starting Bluetooth Client Handler' )
 
-        return commands
+        while True:
+            # Check for active bluetooth connections and adjust the status of the
+            # connection accordingly
+            if len(self.ble_stream._uart._connections) > 0:
+                if self.ble_connection == 'Disconnected':
+                    print( 'Bluetooth Connection Established' )
+                    self.ble_connection = 'Connected'
+            else:
+                if self.ble_connection == 'Connected':
+                    print( 'Bluetooth Connection Closed' )
+                    self.ble_connection = 'Disconnected'
+                
+            # read from the input stream and process any received data. If there is nothing
+            # to read from the buffer, the read function will simply return with no data.
+            bytes_read = self.ble_stream.readinto(data)
+            if bytes_read:
+                decoded_data = self.partial_cmd_buffer + data[0:bytes_read].decode('utf-8')
+                # split the decoded data into separate commands delimited by a newline
+                commands = decoded_data.split('\n')
+
+                # for Bluetooth connections, each read may only contain up to 20 bytes, so the
+                # data may contain a partial command, which will be the last item in the commands
+                # list. We'll store that last item as the partial command so that we can attach the
+                # next received data to the partial command string.
+                self.partial_cmd_buffer = commands.pop()
+
+                self.process_commands( commands )
+
+            # yield the CPU by sleeping for a brief moment so that other tasks can run
+            await asyncio.sleep_ms(50)
 
     def process_commands(self, commands ):
         for command in commands:
