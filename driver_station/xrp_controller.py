@@ -47,7 +47,7 @@ controls = {
 
 #
 # class to implement the XRP controller. This class is derived from the Joystick class
-# and supports an Xbox Controller connected via USB to a Raspberry Pi
+# and supports gamepad controller connected via USB to a Raspberry Pi
 #
 class XrpController(Joystick):
     def __init__(self, path=None, name='NoName', protocol='UDP', host='', port=9999, ble_manager=None):

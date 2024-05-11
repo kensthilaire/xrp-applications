@@ -10,7 +10,8 @@ import time
 from logger import logger
 
 SUPPORTED_DEVICES = (
-    "Logitech Gamepad F310"
+    "Logitech Gamepad F310",
+    "BDA Xbox Series X Wired Controller"
     )
 
 class Joystick:
@@ -24,6 +25,7 @@ class Joystick:
         311: { 'name': 'RightBumper' },
         314: { 'name': 'Select' },
         315: { 'name': 'Start' },
+        316: { 'name': 'Logo' },
         317: { 'name': 'LeftThumb' },
         318: { 'name': 'RightThumb' }
     }
@@ -73,6 +75,8 @@ class Joystick:
             if button:
                 decoded_event['name'] = button['name']
                 decoded_event['value'] = event.value
+            else:
+                print( 'Unknown Button Event: %s' % str(event) )
         elif event.type == ecodes.EV_ABS:
             decoded_event['type'] = 'AXIS'
             axis = self.AXIS_TYPES.get(event.code, None)
@@ -80,6 +84,11 @@ class Joystick:
                 decoded_event['name'] = axis['name']
                 decoded_event['value'] = event.value / axis['max']
                 decoded_event['rounded_value'] = round((event.value / axis['max']), 1)
+            else:
+                print( 'Unknown Axis Event: %s' % str(event) )
+        else: 
+            print( 'Unknown Gamepad Event: %s' % str(event) )
+            
 
         return decoded_event
 
