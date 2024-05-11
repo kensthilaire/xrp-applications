@@ -10,10 +10,11 @@
     "fms" : [
         {
             "url_base": "http://<ip address>:8000",
-            "enabled" : true
+            "enabled" : false
         }
     ],
     "server" : {
+        "name": "<optional name>",
         "socket_type": "TCP",
         "listening_port": 9999
     }
