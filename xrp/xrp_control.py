@@ -360,7 +360,7 @@ class XrpControl():
                 self.process_commands( commands )
 
             # yield the CPU by sleeping for a brief moment so that other tasks can run
-            await asyncio.sleep_ms(50)
+            await asyncio.sleep_ms(100)
 
     def process_commands(self, commands ):
         for command in commands:
@@ -466,7 +466,7 @@ class XrpControl():
                     heading_correction = imu_pid.update(self.desired_heading - imu.get_yaw())
                     drivetrain.set_effort(self.current_speed - heading_correction, self.current_speed + heading_correction)
             
-            await asyncio.sleep_ms(50)
+            await asyncio.sleep_ms(25)
 
     #
     # Simple function for force the XRP to stop moving. This function is used to handle cases
