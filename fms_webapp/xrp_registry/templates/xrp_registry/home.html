@@ -16,18 +16,19 @@
     var deviceData;
 
     const columns = {
-            'name': 'Name',
             'hardware_id': 'Id',
+            'name': 'Name',
+            'ble_service': 'Bluetooth_Svc',
             'ip_address': 'IP_Address',
             'port': 'Port',
-            'application': 'Application',
-            'alliance': 'Alliance',
             'protocol': 'Protocol',
+            'alliance': 'Alliance',
+            'type': 'Type',
+            'last_reported': 'Last_Reported',
+            'application': 'Application',
             'state': 'State',
             'status': 'Status',
-            'type': 'Type',
-            'version': 'Version',
-            'last_reported': 'Last_Reported'
+            'version': 'Version'
     };
 
     function getColumnHeaders() {
@@ -44,10 +45,20 @@
             var reformatted_data = {};
             for (var [key, value] of Object.entries(columns)) {
                 if ( value != '' ) {
-                    if ( json_data[i][key] )
+                    if ( json_data[i][key] ) {
                         reformatted_data[ value ] = json_data[i][key];
-                    else
+                        // apply special formatting to the protocol field to make it more readable
+                        if ( key == 'protocol' ) {
+                            if ( reformatted_data[ value ].toLowerCase() == 'bluetooth' )
+                                reformatted_data[ value ] = title(reformatted_data[ value ]);
+                            else 
+                                reformatted_data[ value ] = reformatted_data[ value ].toUpperCase();
+                        } else if ( key == 'alliance' ) {
+                            reformatted_data[ value ] = title(reformatted_data[ value ]);
+                        }
+                    } else {
                         reformatted_data[ value ] = '';
+                    }
                 }
             }
             json_data[i] = reformatted_data;
@@ -85,7 +96,7 @@
                             "iDisplayLength": 12,
 
                             // specify which column you want to sort on and either 'asc' or 'desc'
-                            "order": [[0, 'asc']],
+                            "order": [[8,'desc'],[1, 'asc']],
                             "select": false,
 
                             "columns": getColumnDefs()
@@ -116,6 +127,22 @@
     function setAlliance( allianceElem, allianceName ) {
         var allianceLabel = document.getElementById(allianceElem);
         allianceLabel.value = allianceName;
+    }
+
+    function loadProtocols(protocolElem, endSelection='') {
+        // load the set of protocol into this page
+        var protocolSelections = [ 'TCP', 'Bluetooth' ];
+    
+        for ( var i=0; i<protocolSelections.length; i++ ) {
+            $('#' + protocolElem + ' ul').append('<li><a href="#" id="setEditProtocol' + protocolSelections[i] + '">' + protocolSelections[i] + '</a></li>');
+        }
+        if ( endSelection !== '' ) {
+            $('#' + protocolElem + ' ul').append('<li><a href="#" id="setEditProtocol' + endSelection + '">' + endSelection + '</a></li>');
+        }   
+    }
+    function setProtocol( protocolElem, protocolName ) {
+        var protocolLabel = document.getElementById(protocolElem);
+        protocolLabel.value = protocolName;
     }
 
     function updateDevice( device ) {
@@ -149,6 +176,7 @@
             if ( table_data[i].hardware_id == device_id ) {
                 table_data[i].name = $('#device-name').val();
                 table_data[i].alliance = deviceData.Alliance = $('#alliance-selection').val().toLowerCase();
+                table_data[i].protocol = deviceData.Protocol = $('#protocol-selection').val().toLowerCase();
                 updateDevice( table_data[i] );
                 break;
             }
@@ -158,6 +186,7 @@
     $(document).ready(function() {
 
         loadAlliances('alliance-selections');
+        loadProtocols('protocol-selections');
         loadDevices();
 
         $('#device_table').on('click', 'tr', function() {
@@ -166,20 +195,32 @@
             $('#device-name').val(deviceData.Name);
             $('#device-ipaddr').val(deviceData.IP_Address);
             $('#device-port').val(deviceData.Port);
+            $('#protocol-selection').val(title(deviceData.Protocol));
             $('#alliance-selection').val(title(deviceData.Alliance));
             $('#device-modal').modal('show');
         });
 
         $('#alliance-selections').on('click', '.dropdown-menu li a', function () {
             setAlliance( 'alliance-selection', $(this).text() );
-        });             
+        });
         $('#alliance-selection').on('click', function () {
             if ( !$('#alliance-selections').hasClass('open') ) {
                 setTimeout(function(){
                     $('#alliance-selection-dropdown').dropdown('toggle');
-                }, 50);             
-            }                           
-        });                             
+                }, 50);
+            }
+        });
+
+        $('#protocol-selections').on('click', '.dropdown-menu li a', function () {
+            setAlliance( 'protocol-selection', $(this).text() );
+        });
+        $('#protocol-selection').on('click', function () {
+            if ( !$('#protocol-selections').hasClass('open') ) {
+                setTimeout(function(){
+                    $('#protocol-selection-dropdown').dropdown('toggle');
+                }, 50);
+            }
+        });
     });
 
 </script>
@@ -241,6 +282,18 @@
                         <div class="col-sm-12 col-sm-12">
                             <div class="input-group" id="device-name-input">
                                 <input type="text" class="form-control" placeholder="Name..." id="device-name">
+                            </div>
+                        </div>
+                    </div>
+                    <h6">Protocol</h6>
+                    <div class="form-group row">
+                        <div class="col-sm-12 col-sm-12">
+                            <div class="input-group" id="protocol-input">
+                                <input type="text" class="form-control" placeholder="Protocol..." id="protocol-selection">
+                                <div id="protocol-selections" class="input-group-btn">
+                                    <button id="color-selection-dropdown" class="btn btn-primary dropdown-toggle" type="button" data-toggle="dropdown"><span class="caret"></span></button>
+                                    <ul id="protocol-selection-menu" class="dropdown-menu pull-right" role="menu"></ul>
+                                </div>
                             </div>
                         </div>
                     </div>
