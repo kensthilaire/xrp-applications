@@ -244,7 +244,6 @@ class XrpController(Joystick):
 # Simple service routine that invokes the controller method that runs the joystick control loop
 #
 def controller_service( controller ):
-    global mutex
     logger.info( 'XRP Controller Service Starting For Device: %s' % str(controller) )
 
     connected = False
@@ -322,12 +321,12 @@ if __name__ == '__main__':
         xrp_ipaddresses = options.xrp_ipaddr.split(',')
         for index,xrp in enumerate(xrp_ipaddresses):
             name = 'XRP-%d' % index
-            logger.debug( 'Configuring %s at %s:%s' % (name,xrp,options.port) )
+            logger.info( 'Configuring %s at %s:%s' % (name,xrp,options.port) )
             xrp_devices.append( { 'name': name, 'ipaddr': xrp, 'port':int(options.port) } )
     else:
         # retrieve the set of devices configured for this controller instance
         xrp_devices = config.get('devices', list())
-        logger.debug( 'Number of configured devices: %d' % len(xrp_devices) )
+        logger.info( 'Number of configured devices: %d' % len(xrp_devices) )
 
     ble_manager = None
     if options.bluetooth or config.get('bluetooth',False) == True:
@@ -339,8 +338,14 @@ if __name__ == '__main__':
     # retrieve the list of joystick devices that are connected to this controller and 
     # create an XRP controller instance to associate with the joysticks.
     xrp_controllers = list()
-    connected_joysticks = joystick.get_joysticks()
-    logger.debug( 'Number of connected joysticks: %d' % len(connected_joysticks) )
+    connected_joysticks = 0
+    while not connected_joysticks:
+        connected_joysticks = joystick.get_joysticks()
+        if connected_joysticks:
+            logger.info( 'Number of connected joysticks: %d' % len(connected_joysticks) )
+        else:
+            logger.info( 'No joysticks detected, will wait for at least one joystick controller')
+            time.sleep(2)
 
     for index, joystick in enumerate(connected_joysticks):
         if index < len(xrp_devices):

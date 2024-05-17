@@ -7,6 +7,7 @@ logger = logging.getLogger('BLE_MGR')
 logger.setLevel(logging.INFO)
 
 from adafruit_ble import BLERadio
+from bleak.exc import BleakError
 
 class BluetoothManager():
     def __init__(self):
@@ -26,23 +27,28 @@ class BluetoothManager():
         while self.shutdown_flag == False:
             with self.mutex:
                 logger.info( 'Scanning For XRP Bluetooth Devices' )
-                for entry in self.ble.start_scan(timeout=60, minimum_rssi=-80):
-                    if entry.complete_name:
-                        logger.info( 'Discovered XRP device: %s' % entry.complete_name )
-                        add_device = False
-                        if self.scan_list:
-                            if entry.complete_name in self.scan_list:
-                                add_device = True
-                        else:
-                            if entry.complete_name.startswith( 'XRP' ):
-                                add_device = True
+                try:
+                    for entry in self.ble.start_scan(timeout=60, minimum_rssi=-80):
+                        if entry.complete_name:
+                            logger.info( 'Discovered XRP device: %s' % entry.complete_name )
+                            add_device = False
+                            if self.scan_list:
+                                if entry.complete_name in self.scan_list:
+                                    add_device = True
+                            else:
+                                if entry.complete_name.startswith( 'XRP' ):
+                                    add_device = True
 
-                        if add_device:
-                            logger.info( 'Saving XRP device: %s' % entry.complete_name )
-                            self.devices[entry.complete_name] = entry
-                            self.ble.stop_scan()
-                            break
-            time.sleep(1)
+                            if add_device:
+                                logger.info( 'Saving XRP device: %s' % entry.complete_name )
+                                self.devices[entry.complete_name] = entry
+                                self.ble.stop_scan()
+                                break
+                except BleakError:
+                    logger.info( 'Caught Bluetooth Error, will pause then retry' )
+                    time.sleep(3)
+
+            time.sleep(2)
         logger.info( 'Bluetooth Scanner Terminated' )
 
     def get_device(self, device_name):
