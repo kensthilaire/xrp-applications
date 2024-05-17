@@ -34,7 +34,6 @@ def add_or_update_device( config, update_config=False ):
             device_obj = devices[0]
             device_obj.type=config.get('type', 'Unknown')
             device_obj.ip_address=config.get('ip_address', 'Unassigned')
-            device_obj.last_reported = datetime.datetime.now().strftime('%m/%d/%Y %I:%M:%S %p' )
             device_obj.last_timestamp = int(time.time())
 
             # Only update these configuration items if the update flag is set. This is done to ensure that
@@ -52,6 +51,8 @@ def add_or_update_device( config, update_config=False ):
                     device_obj.alliance=config['alliance']
                 except KeyError:
                     pass
+            else:
+                device_obj.last_reported = datetime.datetime.now().strftime('%m/%d/%Y %I:%M:%S %p' )
 
             # add in the optional parameters if they are specified in the update
             try:
