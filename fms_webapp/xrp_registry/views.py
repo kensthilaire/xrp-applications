@@ -37,7 +37,7 @@ class DeviceViewSet(viewsets.ModelViewSet):
 @api_view(http_method_names=['POST','DELETE'])
 def register(request):
     if request.method == 'POST':
-        ret_val = add_or_update_device( request.data )
+        ret_val = add_or_update_device( request.data, update_config=False )
         return HttpResponse(ret_val)
     elif request.method == 'DELETE':
         ret_val = delete_device(request.data)
@@ -56,7 +56,7 @@ def status(request):
 @api_view(http_method_names=['POST'])
 def update(request):
     if request.method == 'POST':
-        ret_val = add_or_update_device( request.data )
+        ret_val = add_or_update_device( request.data, update_config=True )
         return HttpResponse(ret_val)
     return HttpResponse("Failed")
 

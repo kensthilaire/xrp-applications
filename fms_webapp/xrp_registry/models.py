@@ -10,7 +10,6 @@ class Device(models.Model):
 
     PROTOCOLS = [
         ('tcp', 'TCP'),
-        ('udp', 'UDP'),
         ('bluetooth', 'BLUETOOTH'),
     ]
 
