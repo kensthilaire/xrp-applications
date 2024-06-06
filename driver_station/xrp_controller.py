@@ -12,8 +12,7 @@ from config import read_config
 
 from logger import logger
 
-import joystick
-from joystick import Joystick
+from joystick_mgr import JoystickMgr
 
 # dictionary of all the xbox controller buttons and controls. By enabling or disabling
 # the controls, you can control how much extra traffic is sent down to the XRP.
@@ -28,23 +27,21 @@ controls = {
     'Start':          { 'type': 'BUTTON', 'enabled': True  },
     'LeftThumb':      { 'type': 'BUTTON', 'enabled': True  },
     'RightThumb':     { 'type': 'BUTTON', 'enabled': True  },
+    'LeftTrigger':    { 'type': 'BUTTON', 'enabled': True  },
+    'RightTrigger':   { 'type': 'BUTTON', 'enabled': True  },
     'LeftJoystickX':  { 'type': 'AXIS',   'enabled': True  },
     'LeftJoystickY':  { 'type': 'AXIS',   'enabled': True  },
-    'LeftTrigger':    { 'type': 'AXIS',   'enabled': True  },
     'RightJoystickX': { 'type': 'AXIS',   'enabled': True  },
     'RightJoystickY': { 'type': 'AXIS',   'enabled': True  },
-    'RightTrigger':   { 'type': 'AXIS',   'enabled': True  },
-    'HatX':           { 'type': 'AXIS',   'enabled': True  },
-    'HatY':           { 'type': 'AXIS',   'enabled': True  }
+    'HatX':           { 'type': 'HAT',    'enabled': True  },
+    'HatY':           { 'type': 'HAT',    'enabled': True  }
 }
 
 #
-# class to implement the XRP controller. This class is derived from the Joystick class
-# and supports an Xbox Controller connected via USB to a Raspberry Pi
 #
-class XrpController(Joystick):
-    def __init__(self, path=None, socket_type='UDP', host='', port=9999):
-        super().__init__(path)
+#
+class XrpController():
+    def __init__(self, socket_type='UDP', host='', port=9999):
 
         signal.signal(signal.SIGINT, self.shutdown)
         signal.signal(signal.SIGTERM, self.shutdown)
@@ -85,16 +82,22 @@ class XrpController(Joystick):
         name = event['name']
         try:
             control = controls[name]
-
             if control.get('enabled', False) == True:
                 if control['type'] == 'AXIS':
                     # for the axis type, send the value rounded to the nearest 2 decimal points
                     value = event['rounded_value']
                     command = '%s:%s:%f' % ('Event',name, value) 
+                    logger.debug( 'Axis Type: %s, Value: %f' % (name,value) )
                 elif control['type'] == 'BUTTON':
                     # for the button type, send the value reported by the button (1:PRESSED or 0:RELEASED)
                     value = event['value']
                     command = '%s:%s:%d' % ('Event',name, value) 
+                    logger.debug( 'Button Type: %s, Value: %d' % (name,value) )
+                elif control['type'] == 'HAT':
+                    # for the hat type, send the value as an integer value
+                    value = event['value']
+                    command = '%s:%s:%d' % ('Event',name, value) 
+                    logger.debug( 'Hat Type: %s, Value: %d' % (name,value) )
                 else:
                     logger.error( 'Unknown Event Type: %s' % name )
 
@@ -175,26 +178,38 @@ if __name__ == '__main__':
         # retrieve the set of devices configured for this controller instance
         xrp_devices = config.get('devices', list())
 
+    # initialize the joystick manager instance, binding each joystick to an XRP instance
+    joystick_mgr = JoystickMgr()
+
     #
     # retrieve the list of joystick devices that are connected to this controller and 
     # create an XRP controller instance to assotiate with the joysticks.
-    controller_threads = list()
-    connected_joysticks = joystick.get_joysticks()
-    for index, joystick in enumerate(connected_joysticks):
+    connected_joysticks = joystick_mgr.get_joysticks()
+
+    logger.debug( 'Number of connected joysticks: %d' % len(connected_joysticks) )
+
+    index = 0
+    for joystick in connected_joysticks.values():
         if index < len(xrp_devices):
             xrp_config = xrp_devices[index]
             xrp_ipaddr = xrp_config.get('ipaddr', 'localhost')
             xrp_port = xrp_config.get('port', 9999)
 
             # Create the XRP controller instance
-            controller = XrpController(path=joystick.path, socket_type=socket_type, host=xrp_ipaddr, port=xrp_port)
-            controller_thread = threading.Thread( target=controller_service, args=(controller,), daemon=True )
-            controller_threads.append( controller_thread )
-            controller_thread.start()
+            logger.debug( 'Creating XRP instance %s, Type: %s, Host: %s' % (xrp_config.get('name','Unknown'), socket_type, xrp_ipaddr) )
+            controller = XrpController(socket_type=socket_type, host=xrp_ipaddr, port=xrp_port)
+            controller.initialize_client_socket()
 
-    for index, thread in enumerate(controller_threads):
-        try:
-            thread.join()
-        except KeyboardInterrupt:
+            joystick_mgr.bind_device(joystick.get_instance_id(),controller)
+            index += 1
+        else:
             break
- 
+
+    done = False
+    while not done:
+        try:
+            event = joystick_mgr.process_events()
+            time.sleep(0.1)
+        except KeyboardInterrupt:
+            done = True
+
