@@ -43,39 +43,60 @@ controls = {
 class XrpController():
     def __init__(self, socket_type='UDP', host='', port=9999):
 
-        signal.signal(signal.SIGINT, self.shutdown)
-        signal.signal(signal.SIGTERM, self.shutdown)
-
         self.shutdown = False
 
+        self.path = path
         self.host = host
         self.port = int(port)
         self.socket = None
-        self.socket_type = socket_type
+        self.socket_type = socket_type.upper()
+
+    def __str__(self):
+        return 'XRP Address: %s:%d, Type: %s' % (self.host,self.port,self.socket_type)
 
     def initialize_client_socket(self):
+        connected = True
+        err = ''
+
         # create a socket based on the requested type
-        logger.info( 'Creating Client Connection to %s:%d' % (self.host,self.port) )
         if self.socket_type == 'UDP':
+            logger.info( 'Creating UDP Client Connection to %s:%d' % (self.host,self.port) )
             self.socket = socket.socket( socket.AF_INET, socket.SOCK_DGRAM )
         elif self.socket_type == 'TCP':
-            while not self.shutdown:
+            logger.info( 'Creating TCP Client Connection to %s:%d' % (self.host,self.port) )
+            while True:
                 try:
                     self.socket = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
                     self.socket.connect( (self.host,self.port) )
                     logger.info( 'Client Connection Established to %s:%d' % (self.host,self.port) )
                     break
                 except ConnectionRefusedError:
-                    time.sleep(5)
-                    logger.error( 'Error Connecting to %s:%d, Retrying' % (self.host,self.port) )
+                    logger.error( 'Error Connecting to %s:%d, Connection Refused' % (self.host,self.port) )
+                    connected = False
+                    err = 'Connection Refused'
+                    break
                 except OSError:
-                    time.sleep(5)
                     logger.error( 'Error Connecting to %s:%d, Check if XRP is running' % (self.host,self.port) )
+                    connected = False
+                    err = 'XRP Not Reachable'
+                    break
+                except:
+                    logger.error( 'Unknown Error Connecting to %s:%d, Check if XRP is running' % (self.host,self.port) )
+                    connected = False
+                    err = 'XRP Connection Error'
+                    break
+        else:
+            logger.error( 'Unknown Socket Type: %s' % (self.socket_type) )
+
+        return connected,err
 
     def shutdown( self, *args ):
-        logger.info( 'Shutdown complete.' )
+        self.terminate_read_loop = True
+        time.sleep(2)
 
-        sys.exit(0)
+        self.shutdown = True
+        logger.info( 'Shutdown complete.' )
+        #sys.exit(0)
 
     def send_event( self, event ):
         command = None
@@ -113,6 +134,7 @@ class XrpController():
             pass
 
     def joystick_control(self):
+        err = ''
         try:
             for event in self.gamepad.read_loop():
                 try:
@@ -120,22 +142,58 @@ class XrpController():
                     self.send_event( decoded_event )
                 except ConnectionResetError:
                     logger.error( 'Server Connection Error from %s:%d, Restablishing connection' % (self.host,self.port) )
-                    self.initialize_client_socket()
+                    connected, err = self.initialize_client_socket()
+                    if not connected:
+                        logger.info( 'Connection Could Not Be Restablished, terminating joystick processing' )
+                        err = 'Connection Reset'
+                        break
                 except BrokenPipeError:
                     logger.error( 'Client Connection Lost to %s:%d, Restablishing connection' % (self.host,self.port) )
-                    self.initialize_client_socket()
+                    connected, err = self.initialize_client_socket()
+                    if not connected:
+                        logger.info( 'Connection Could Not Be Restablished, terminating joystick processing' )
+                        err = 'Broken Pipe'
+                        break
+
+                if self.terminate_read_loop:
+                    logger.info( 'Terminating Controller Read Loop' )
+                    break
         except OSError:
             logger.error( 'Controller Error Detected, terminating joystick processing' )
+
+        return err
 
 #
 # Simple service routine that invokes the controller method that runs the joystick control loop
 #
 def controller_service( controller ):
-    controller.initialize_client_socket()
-    controller.joystick_control()
+    logger.info( 'XRP Controller Service Starting For Device: %s' % str(controller) )
 
+    connected, err = controller.initialize_client_socket()
+    if connected:
+        err = controller.joystick_control()
+
+    logger.info( 'XRP Controller Service Terminated For Device: %s' % str(controller) )
+    return err
+
+#
+#
+#
+def shutdown_handler(signum, frame):
+    shutdown_all()
+    sys.exit(0)
+
+def shutdown_all():
+    logger.info( 'Terminating controller service threads' )
+    for controller in xrp_controllers:
+        controller.terminate_read_loop = True
+    time.sleep(2)
 
 if __name__ == '__main__':
+
+    # install signal handlers to handle a shutdown request
+    signal.signal(signal.SIGINT, shutdown_handler)
+    signal.signal(signal.SIGTERM, shutdown_handler)
 
     #
     # parse out the command arguments
@@ -212,4 +270,3 @@ if __name__ == '__main__':
             time.sleep(0.1)
         except KeyboardInterrupt:
             done = True
-

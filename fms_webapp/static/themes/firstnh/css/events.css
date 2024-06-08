@@ -1,0 +1,204 @@
+
+.fc-state-highlight {background:Khaki;}
+.fc-event, .fc-event-dot {background-color: var(--main-bg-color);border: var(--main-bg-color);}
+.fc-day-number {color: var(--main-bg-color);}
+
+    #calendar {
+        max-width: 900px;
+        margin: 0 auto;
+    }
+
+    .scrollable-menu {
+        height: auto;
+        max-height: 180px;
+        overflow-x: hidden;
+    }
+
+    .datepicker {
+      z-index: 1600 !important; /* has to be larger than 1050 */
+    }
+
+    .col-sm-6-left {
+        padding-left:  0px;
+        padding-right: 2px;
+    }
+
+    .col-sm-6-right {
+        padding-left:  2px;
+        padding-right: 0px;
+    }
+
+    .modal-custom-header {
+        color:              #fff;
+        background-color:   var(--main-bg-color);
+    }
+
+    .modal-header-close-icon {
+        color:              #fff;
+        background-color:   var(--main-bg-color);
+        padding-left:       4px;
+        padding-right:      4px;
+        padding-top:        4px;
+    }
+
+
+    .modal-header-icons {
+        color:              #fff;
+        background-color:   var(--main-bg-color);
+        padding-left:       4px;
+        padding-right:      4px;
+        padding-bottom:     4px;
+    }
+
+    // some styling for the event details modal dialog
+    .event-details-modal ul {
+        margin-left: -15px;
+    }
+    .event-details-modal ul li {
+        list-style-type: none;
+        margin-bottom: 4px;
+        display: flex;
+    }
+    .event-details-modal ul li i {
+        margin-right: 10px;
+    }
+    .event-details-modal ul li p {
+        margin: 0;
+    }
+
+    .ext-event-bg {
+        background-color: #003366;
+    }
+    .ext-event {
+        color: #003366;
+    }
+
+    .frc-event-bg {
+        background-color: #009cd7;
+    }
+    .frc-event {
+        color: #009cd7;
+    }
+    .ftc-event-bg {
+        background-color: #f57f26;
+    }
+    .ftc-event {
+        color: #f57f26;
+    }
+    .fll-challenge-event-bg {
+        background-color: #ed1c24;
+    }
+    .fll-challenge-event {
+        color: #ed1c24;
+    }
+    .fll-explore-event-bg {
+        background-color: #00a651;
+    }
+    .fll-explore-event {
+        color: #00a651;
+    }
+    .fll-discover-event-bg {
+        background-color: #662d91;
+    }
+    .fll-discover-event-bg {
+
+    #calendar {
+        max-width: 900px;
+        margin: 0 auto;
+    }
+
+    .scrollable-menu {
+        height: auto;
+        max-height: 180px;
+        overflow-x: hidden;
+    }
+
+    .datepicker {
+      z-index: 1600 !important; /* has to be larger than 1050 */
+    }
+
+    .col-sm-6-left {
+        padding-left:  0px;
+        padding-right: 2px;
+    }
+
+    .col-sm-6-right {
+        padding-left:  2px;
+        padding-right: 0px;
+    }
+
+    .modal-custom-header {
+        color:              #fff;
+        background-color:   var(--main-bg-color);
+    }
+
+    .modal-header-close-icon {
+        color:              #fff;
+        background-color:   var(--main-bg-color);
+        padding-left:       4px;
+        padding-right:      4px;
+        padding-top:        4px;
+    }
+
+    .modal-header-icons {
+        color:              #fff;
+        background-color:   var(--main-bg-color);
+        padding-left:       4px;
+        padding-right:      4px;
+        padding-bottom:     4px;
+    }
+
+    // some styling for the event details modal dialog
+    .event-details-modal ul {
+        margin-left: -15px;
+    }
+    .event-details-modal ul li {
+        list-style-type: none;
+        margin-bottom: 4px;
+        display: flex;
+    }
+    .event-details-modal ul li i {
+        margin-right: 10px;
+    }
+    .event-details-modal ul li p {
+        margin: 0;
+    }
+
+    .ext-event-bg {
+        background-color: #003366;
+    }
+    .ext-event {
+        color: #003366;
+    }
+
+    .frc-event-bg {
+        background-color: #009cd7;
+    }
+    .frc-event {
+        color: #009cd7;
+    }
+    .ftc-event-bg {
+        background-color: #f57f26;
+    }
+    .ftc-event {
+        color: #f57f26;
+    }
+    .fll-challenge-event-bg {
+        background-color: #ed1c24;
+    }
+    .fll-challenge-event {
+        color: #ed1c24;
+    }
+    .fll-explore-event-bg {
+        background-color: #00a651;
+    }
+    .fll-explore-event {
+        color: #00a651;
+    }
+    .fll-discover-event-bg {
+        background-color: #662d91;
+    }
+    .fll-discover-event {
+        color: #662d91;
+    }
+

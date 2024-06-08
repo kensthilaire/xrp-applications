@@ -1,0 +1,323 @@
+{% extends 'base.html' %}
+
+{% block head-content %}
+<title>XRP Devices</title>
+{% endblock %}
+
+{% block content %}
+
+<link rel="stylesheet" href="/static/font-awesome/css/font-awesome.min.css">
+<link href="/static/themes/firstnh/css/tabledetails.css" rel="stylesheet"/>
+
+<script>
+
+    var my_table;
+    var table_data = [];
+    var deviceData;
+
+    const columns = {
+            'hardware_id': 'Id',
+            'name': 'Name',
+            'ble_service': 'Bluetooth_Svc',
+            'ip_address': 'IP_Address',
+            'port': 'Port',
+            'protocol': 'Protocol',
+            'alliance': 'Alliance',
+            'type': 'Type',
+            'last_reported': 'Last_Reported',
+            'application': 'Application',
+            'state': 'State',
+            'status': 'Status',
+            'version': 'Version'
+    };
+
+    function getColumnHeaders() {
+        var headers = $.map(columns, function(value, key) { return value });
+        return headers;
+    }
+    function getColumnDefs() {
+        var columnDefs = $.map(columns, function(value, key) { return { 'title': value, 'data': value } });
+        return columnDefs;
+    }
+
+    function reformatData( json_data ) {
+        for ( var i=0; i<json_data.length; i++ ) {
+            var reformatted_data = {};
+            for (var [key, value] of Object.entries(columns)) {
+                if ( value != '' ) {
+                    if ( json_data[i][key] ) {
+                        reformatted_data[ value ] = json_data[i][key];
+                        // apply special formatting to the protocol field to make it more readable
+                        if ( key == 'protocol' ) {
+                            if ( reformatted_data[ value ].toLowerCase() == 'bluetooth' )
+                                reformatted_data[ value ] = title(reformatted_data[ value ]);
+                            else 
+                                reformatted_data[ value ] = reformatted_data[ value ].toUpperCase();
+                        } else if ( key == 'alliance' ) {
+                            reformatted_data[ value ] = title(reformatted_data[ value ]);
+                        }
+                    } else {
+                        reformatted_data[ value ] = '';
+                    }
+                }
+            }
+            json_data[i] = reformatted_data;
+        }
+
+        return json_data;
+    }
+
+    function loadDevices(refresh) {
+
+        var url = "/api/devices/";
+
+        var jqxhr = $.getJSON( url, function(json_data) {
+            console.log( "success" );
+
+            console.log( json_data );
+
+            // save the returned data from the GET request
+            table_data = JSON.parse(JSON.stringify(json_data));
+
+            // reformat the data for display
+            json_data = reformatData( json_data );
+
+            function drawTable( json_data ) {
+                my_table = $('#device_table').DataTable( {
+                            //"dom": "<'row'<'col-sm-3 text-left'l><'col-sm-4 text-right'i><'col-sm-5'p>>" +
+                            //       "<'row'<'col-sm-12'rt>>" +
+                            //       "<'row'<'col-sm-5'f><'col-sm-7'p>>",
+                            "searching": true,
+                            "responsive": true,
+                            "scrollX": true,
+                            "data": json_data,
+                            "bAutoWidth": true, // Disable the auto width calculation
+                            "aLengthMenu": [ [10, 12, 15, 20, 50, 100, -1], [10, 12, 15, 20, 50, 100, "All"]],
+                            "iDisplayLength": 12,
+
+                            // specify which column you want to sort on and either 'asc' or 'desc'
+                            "order": [[8,'desc'],[1, 'asc']],
+                            "select": false,
+
+                            "columns": getColumnDefs()
+                        } );
+            }
+
+            drawTable( json_data );
+
+        } );
+    }
+
+    function refreshData() {
+        my_table.destroy();
+        loadDevices(true);
+    }
+
+    function loadAlliances(allianceElem, endSelection='') {
+        // load the set of alliances into this page
+        var allianceSelections = [ 'Any', 'Red', 'Blue' ];
+    
+        for ( var i=0; i<allianceSelections.length; i++ ) {
+            $('#' + allianceElem + ' ul').append('<li><a href="#" id="setEditAlliance' + allianceSelections[i] + '">' + allianceSelections[i] + '</a></li>');
+        }
+        if ( endSelection !== '' ) {
+            $('#' + allianceElem + ' ul').append('<li><a href="#" id="setEditAlliance' + endSelection + '">' + endSelection + '</a></li>');
+        }   
+    }
+    function setAlliance( allianceElem, allianceName ) {
+        var allianceLabel = document.getElementById(allianceElem);
+        allianceLabel.value = allianceName;
+    }
+
+    function loadProtocols(protocolElem, endSelection='') {
+        // load the set of protocol into this page
+        var protocolSelections = [ 'TCP', 'Bluetooth' ];
+    
+        for ( var i=0; i<protocolSelections.length; i++ ) {
+            $('#' + protocolElem + ' ul').append('<li><a href="#" id="setEditProtocol' + protocolSelections[i] + '">' + protocolSelections[i] + '</a></li>');
+        }
+        if ( endSelection !== '' ) {
+            $('#' + protocolElem + ' ul').append('<li><a href="#" id="setEditProtocol' + endSelection + '">' + endSelection + '</a></li>');
+        }   
+    }
+    function setProtocol( protocolElem, protocolName ) {
+        var protocolLabel = document.getElementById(protocolElem);
+        protocolLabel.value = protocolName;
+    }
+
+    function updateDevice( device ) {
+        try {
+            var csrftoken = getCookie('csrftoken');
+
+            var jqxhr = $.ajax({
+                            url:/update/,
+                            type:"POST",
+                            beforeSend: function(xhr){
+                                        xhr.setRequestHeader("X-CSRFToken",getCookie("csrftoken"));
+                            },
+                            data:device,
+                            dataType:"json"
+                            }).done(function(msg) {
+                                console.log( "Device Updated!")
+                                setTimeout(function () { window.location.reload(); }, 1);
+                            }).fail(function(jqxhr, textStatus) {
+                                console.log( "Device Update Error: " + textStatus)
+                                setTimeout(function () { window.location.reload(); }, 1);
+                            });
+        } catch (errorText) {
+            alert( errorText );
+        }
+    }
+
+    function submitEditDevice() {
+        var device_id = $('#device-id').val();
+
+        for ( var i=0; i<table_data.length; i++ ) {
+            if ( table_data[i].hardware_id == device_id ) {
+                table_data[i].name = $('#device-name').val();
+                table_data[i].alliance = deviceData.Alliance = $('#alliance-selection').val().toLowerCase();
+                table_data[i].protocol = deviceData.Protocol = $('#protocol-selection').val().toLowerCase();
+                updateDevice( table_data[i] );
+                break;
+            }
+        }
+    }
+
+    $(document).ready(function() {
+
+        loadAlliances('alliance-selections');
+        loadProtocols('protocol-selections');
+        loadDevices();
+
+        $('#device_table').on('click', 'tr', function() {
+            deviceData = my_table.row(this).data();
+            $('#device-id').val(deviceData.Id);
+            $('#device-name').val(deviceData.Name);
+            $('#device-ipaddr').val(deviceData.IP_Address);
+            $('#device-port').val(deviceData.Port);
+            $('#protocol-selection').val(title(deviceData.Protocol));
+            $('#alliance-selection').val(title(deviceData.Alliance));
+            $('#device-modal').modal('show');
+        });
+
+        $('#alliance-selections').on('click', '.dropdown-menu li a', function () {
+            setAlliance( 'alliance-selection', $(this).text() );
+        });
+        $('#alliance-selection').on('click', function () {
+            if ( !$('#alliance-selections').hasClass('open') ) {
+                setTimeout(function(){
+                    $('#alliance-selection-dropdown').dropdown('toggle');
+                }, 50);
+            }
+        });
+
+        $('#protocol-selections').on('click', '.dropdown-menu li a', function () {
+            setAlliance( 'protocol-selection', $(this).text() );
+        });
+        $('#protocol-selection').on('click', function () {
+            if ( !$('#protocol-selections').hasClass('open') ) {
+                setTimeout(function(){
+                    $('#protocol-selection-dropdown').dropdown('toggle');
+                }, 50);
+            }
+        });
+    });
+
+</script>
+
+<div class="section" id="devices">
+    <div class="container">
+        <div class="col-md-12">
+            <div class="container">
+            <table id="device_table" class="table table-striped table-bordered dataTable no-footer" width="100%" cellspacing="0" role="grid" aria-describedby="example_info" style="width: 100%;">
+                <thead>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block modals %}
+
+<div class="modal fade" id="device-modal" role="dialog">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Cancel</span></button>
+                <h4 id="update-device-modal-title" class="modal-title">Update Device Parameters</h4>
+            </div>
+            <div class="modal-body">
+                <form>
+                    <h6">Hardware Id</h6>
+                    <div class="form-group row">
+                        <div class="col-sm-12 col-sm-12">
+                            <div class="input-group" id="device-id-input">
+                                <input type="text" class="form-control" placeholder="Id..." id="device-id" readonly>
+                            </div>
+                        </div>
+                    </div>
+                    <h6">Ip Address</h6>
+                    <div class="form-group row">
+                        <div class="col-sm-12 col-sm-12">
+                            <div class="input-group" id="device-ipaddr-input">
+                                <input type="text" class="form-control" placeholder="IP Address..." id="device-ipaddr" readonly>
+                            </div>
+                        </div>
+                    </div>
+                    <h6">Port<h6>
+                    <div class="form-group row">
+                        <div class="col-sm-12 col-sm-12">
+                            <div class="input-group" id="device-port-input">
+                                <input type="text" class="form-control" placeholder="IP Port..." id="device-port" readonly>
+                            </div>
+                        </div>
+                    </div>
+                    <h6">Name</h6>
+                    <div class="form-group row">
+                        <div class="col-sm-12 col-sm-12">
+                            <div class="input-group" id="device-name-input">
+                                <input type="text" class="form-control" placeholder="Name..." id="device-name">
+                            </div>
+                        </div>
+                    </div>
+                    <h6">Protocol</h6>
+                    <div class="form-group row">
+                        <div class="col-sm-12 col-sm-12">
+                            <div class="input-group" id="protocol-input">
+                                <input type="text" class="form-control" placeholder="Protocol..." id="protocol-selection">
+                                <div id="protocol-selections" class="input-group-btn">
+                                    <button id="color-selection-dropdown" class="btn btn-primary dropdown-toggle" type="button" data-toggle="dropdown"><span class="caret"></span></button>
+                                    <ul id="protocol-selection-menu" class="dropdown-menu pull-right" role="menu"></ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <h6">Alliance</h6>
+                    <div class="form-group row">
+                        <div class="col-sm-12 col-sm-12">
+                            <div class="input-group" id="alliance-input">
+                                <input type="text" class="form-control" placeholder="Alliance..." id="alliance-selection">
+                                <div id="alliance-selections" class="input-group-btn">
+                                    <button id="color-selection-dropdown" class="btn btn-primary dropdown-toggle" type="button" data-toggle="dropdown"><span class="caret"></span></button>
+                                    <ul id="alliance-selection-menu" class="dropdown-menu pull-right" role="menu"></ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <!-- <button type="button" class="btn btn-primary" data-dismiss="modal" onClick='submitEditDevice()'>Delete</button> -->
+                <button type="button" class="btn btn-primary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" data-dismiss="modal" onClick='submitEditDevice()'>Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
