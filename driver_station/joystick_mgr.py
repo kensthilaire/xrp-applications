@@ -109,7 +109,7 @@ class JoystickMgr:
             if axis:
                 decoded_event['name'] = axis['name']
                 decoded_event['value'] = event.value / axis['max']
-                decoded_event['rounded_value'] = round((event.value / axis['max']), 2)
+                decoded_event['rounded_value'] = round((event.value / axis['max']), 1)
         elif event.type == pygame.JOYHATMOTION:
             decoded_event['type'] = 'HAT'
             # look for a change in the hat values for X and Y coordinates and map any
