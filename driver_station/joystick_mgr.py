@@ -40,7 +40,7 @@ class JoystickMgr:
         1: { 'name': 'HatY', 'min': -1, 'max': 1 }
     }
 
-    def __init__(self, path=None):
+    def __init__(self, scan_for_joysticks=True):
         self.joysticks = {}
         self.devices = {}
         self.curr_hat_x = {}
@@ -48,23 +48,37 @@ class JoystickMgr:
 
         pygame.init()
 
-        # do an initial scan to process events which will detect any 
-        # currently connected joystick devices
-        done = False
-        while not done:
-            done = self.process_events()
-            if done:
-                sys.exit(0)
+        if scan_for_joysticks:
+            # do an initial scan to process events which will detect any 
+            # currently connected joystick devices
+            done = False
+            while not done:
+                done = self.process_events()
+                if done:
+                    sys.exit(0)
 
-            if len(self.joysticks) > 0:
-                done = True
-            else:
-                logger.error( 'No Gamepad Controllers Detected, retrying' )
-                time.sleep(2)
+                if len(self.joysticks) > 0:
+                    done = True
+                else:
+                    logger.error( 'No Gamepad Controllers Detected, retrying' )
+                    time.sleep(2)
 
-    # simple function to associated a controller device to a joystick instance
-    def bind_device(self, key, device):
-        self.devices[key] = device
+    #
+    # set of functions to manage the binding between a joystick instance and
+    # an associated device
+    #
+    def bind_device(self, joystick_key, device):
+        self.devices[joystick_key] = device
+
+    def get_bound_device(self, joystick_key):
+        device = self.devices.get( joystick_key, None )
+        return device
+
+    def remove_device_binding(self, joystick_key):
+        try:
+            self.devices[joystick_key] = None
+        except:
+            pass
 
     def get_num_joysticks(self):
         pygame.joystick.get_count()
@@ -117,7 +131,7 @@ class JoystickMgr:
             decoded_event['name'] = 'JOYSTICK'
             decoded_event['value'] = 'CONNECTED'
             joystick = pygame.joystick.Joystick(event.device_index)
-            logger.info( 'Joystick: %s Connected' % joystick )
+            logger.info( 'Joystick: %s Connected' % joystick.get_instance_id() )
             self.joysticks[joystick.get_instance_id()] = joystick
             self.curr_hat_x[joystick.get_instance_id()] = 0
             self.curr_hat_y[joystick.get_instance_id()] = 0
@@ -133,26 +147,19 @@ class JoystickMgr:
             if event.unicode == '\x03':
                 decoded_event['type'] = 'QUIT'
 
-        logger.debug( 'Decoded Event: %s' % str(decoded_event) )
+        #logger.debug( 'Decoded Event: %s' % str(decoded_event) )
         return decoded_event
 
     def process_events(self):
         done = False
         for event in pygame.event.get():
-            print( event )
             decoded_event = self.decode_event( event )
             if decoded_event['type'] in ['BUTTON', 'AXIS', 'HAT']:
                 device = self.devices.get(event.instance_id, None)
                 if device:
-                    try:
-                        logger.debug( 'Sending Event: %s' % str(decoded_event) )
-                        device.send_event( decoded_event )
-                    except ConnectionResetError:
-                        logger.error( 'Server Connection Error from %s:%d, Restablishing connection' % (device.host,device.port) )
-                        device.initialize_client_socket()
-                    except BrokenPipeError:
-                        logger.error( 'Client Connection Lost to %s:%d, Restablishing connection' % (device.host,device.port) )
-                        device.initialize_client_socket()
+                    device.process_event( decoded_event )
+                else:
+                    logger.debug( 'No Device Bound To Process Event: %s %s %s' % (decoded_event['name'], decoded_event['type'], decoded_event['value']) )
             elif decoded_event['type'] == 'MGMT':
                 logger.debug( 'Management Event: %s %s' % (decoded_event['name'], decoded_event['value']) )
             elif decoded_event['type'] == 'QUIT':

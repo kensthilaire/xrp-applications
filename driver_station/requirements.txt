@@ -1,4 +1,4 @@
-evdev
+pygame
 requests
 schedule
 urllib3

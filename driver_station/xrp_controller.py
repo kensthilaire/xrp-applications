@@ -45,11 +45,12 @@ class XrpController():
 
         self.shutdown = False
 
-        self.path = path
         self.host = host
         self.port = int(port)
         self.socket = None
         self.socket_type = socket_type.upper()
+
+        self.initialize_client_socket()
 
     def __str__(self):
         return 'XRP Address: %s:%d, Type: %s' % (self.host,self.port,self.socket_type)
@@ -90,13 +91,15 @@ class XrpController():
 
         return connected,err
 
-    def shutdown( self, *args ):
-        self.terminate_read_loop = True
-        time.sleep(2)
-
-        self.shutdown = True
-        logger.info( 'Shutdown complete.' )
-        #sys.exit(0)
+    def process_event( self, event ):
+        try:
+            self.send_event( event )
+        except ConnectionResetError:
+            logger.error( 'Server Connection Error from %s:%d, Restablishing connection' % (self.host,self.port) )
+            self.initialize_client_socket()
+        except BrokenPipeError:
+            logger.error( 'Client Connection Lost to %s:%d, Restablishing connection' % (self.host,self.port) )
+            self.initialize_client_socket()
 
     def send_event( self, event ):
         command = None
@@ -133,61 +136,16 @@ class XrpController():
         except KeyError:
             pass
 
-    def joystick_control(self):
-        err = ''
-        try:
-            for event in self.gamepad.read_loop():
-                try:
-                    decoded_event = self.decode_event( event )
-                    self.send_event( decoded_event )
-                except ConnectionResetError:
-                    logger.error( 'Server Connection Error from %s:%d, Restablishing connection' % (self.host,self.port) )
-                    connected, err = self.initialize_client_socket()
-                    if not connected:
-                        logger.info( 'Connection Could Not Be Restablished, terminating joystick processing' )
-                        err = 'Connection Reset'
-                        break
-                except BrokenPipeError:
-                    logger.error( 'Client Connection Lost to %s:%d, Restablishing connection' % (self.host,self.port) )
-                    connected, err = self.initialize_client_socket()
-                    if not connected:
-                        logger.info( 'Connection Could Not Be Restablished, terminating joystick processing' )
-                        err = 'Broken Pipe'
-                        break
-
-                if self.terminate_read_loop:
-                    logger.info( 'Terminating Controller Read Loop' )
-                    break
-        except OSError:
-            logger.error( 'Controller Error Detected, terminating joystick processing' )
-
-        return err
-
-#
-# Simple service routine that invokes the controller method that runs the joystick control loop
-#
-def controller_service( controller ):
-    logger.info( 'XRP Controller Service Starting For Device: %s' % str(controller) )
-
-    connected, err = controller.initialize_client_socket()
-    if connected:
-        err = controller.joystick_control()
-
-    logger.info( 'XRP Controller Service Terminated For Device: %s' % str(controller) )
-    return err
-
-#
-#
-#
 def shutdown_handler(signum, frame):
     shutdown_all()
     sys.exit(0)
 
 def shutdown_all():
-    logger.info( 'Terminating controller service threads' )
-    for controller in xrp_controllers:
-        controller.terminate_read_loop = True
-    time.sleep(2)
+    logger.info( 'Terminating XRP controller service' )
+    if xrp_controllers:
+        for controller in xrp_controllers:
+            controller.shutdown = True
+        time.sleep(2)
 
 if __name__ == '__main__':
 
@@ -236,6 +194,9 @@ if __name__ == '__main__':
         # retrieve the set of devices configured for this controller instance
         xrp_devices = config.get('devices', list())
 
+    # list of xrp_controllers instantiated as part of this application
+    xrp_controllers = list()
+
     # initialize the joystick manager instance, binding each joystick to an XRP instance
     joystick_mgr = JoystickMgr()
 
@@ -253,20 +214,23 @@ if __name__ == '__main__':
             xrp_ipaddr = xrp_config.get('ipaddr', 'localhost')
             xrp_port = xrp_config.get('port', 9999)
 
-            # Create the XRP controller instance
+            # Create the XRP controller instance to service this XRP device
             logger.debug( 'Creating XRP instance %s, Type: %s, Host: %s' % (xrp_config.get('name','Unknown'), socket_type, xrp_ipaddr) )
             controller = XrpController(socket_type=socket_type, host=xrp_ipaddr, port=xrp_port)
-            controller.initialize_client_socket()
+            xrp_controllers.append( controller )
 
+            # Bind the XRP controller to the joystick instance. All events received from that joystick will be handled by the
+            # controller instance.
             joystick_mgr.bind_device(joystick.get_instance_id(),controller)
+
             index += 1
         else:
+            # we have more connected joysticks than XRP devices
             break
 
-    done = False
-    while not done:
-        try:
-            event = joystick_mgr.process_events()
-            time.sleep(0.1)
-        except KeyboardInterrupt:
-            done = True
+    # launch the joystick manager run loop to process events from the gamepad controllers. This function will not return until
+    # the program is terminated
+    joystick_mgr.run()
+
+    # perform any final cleanup as part of the shutdown
+    shutdown_all()

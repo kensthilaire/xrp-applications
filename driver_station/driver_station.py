@@ -3,6 +3,7 @@
 import argparse
 import json
 import logging
+import platform
 import requests
 import signal
 import socket
@@ -16,33 +17,16 @@ from config import read_config
 from logger import logger
 from safe_scheduler import SafeScheduler
 
-import joystick
-from xrp_controller import XrpController, controller_service
+from joystick_mgr import JoystickMgr
+from xrp_controller import XrpController
 
-#
-# Service routine that will be run as a separate thread for each XRP control instance to an
-# XRP device. This service routin will call the base controller service and it will only
-# return if there is some form of error, like when a controller is disconnected
-#
-def ds_controller_service( ds, device, controller ):
-
-    # invoke the XRP controller service routine which will not return unless there is an error
-    err = controller_service( controller )
-
-    # if the controller service function ever returns, it's because of a gamepad/joystick 
-    # communication failure. Just clear the controller setting within the device and 
-    # the device will reconnect once the problem clears
-    device['controller'] = None
-
-    if err == 'XRP Not Reachable':
-        # if the XRP is not reachable, let's move it to the end of the device list so that
-        # others may connect
-        ds.devices.remove(device)
-        ds.devices.append(device)
+def joystick_service( joystick_mgr ):
+    joystick_mgr.run()
 
 class DriverStation():
     def __init__(self, config):
         self.config = config
+        self.shutdown = False
 
         # set up the scheduler service with the default items. Do this early
         # in the initialization sequence so that additional items can be added
@@ -51,7 +35,7 @@ class DriverStation():
 
         # initialize the list of XRP devices and controllers that are attached to this instance
         self.devices = list()
-        self.controllers = list()
+        self.gamepad_controllers = list()
 
         # if an FMS is configured, then register with the first available FMS in the 
         # configuration list
@@ -72,6 +56,8 @@ class DriverStation():
                     logger.error( 'No FMS available, will try again in 30 seconds' )
                     time.sleep(30)
 
+        self.joystick_mgr = JoystickMgr(scan_for_joysticks=False)
+
         self.status_reported = 0
         self.status = 'Running'
 
@@ -80,8 +66,8 @@ class DriverStation():
     #
     def setup_schedule(self):
         self.scheduler = SafeScheduler()
-        self.scheduler.every(5).seconds.do(self.scan_controllers)
-        self.scheduler.every(10).seconds.do(self.scan_devices)
+        self.scheduler.every(5).seconds.do(self.scan_gamepad_controllers)
+        self.scheduler.every(10).seconds.do(self.scan_xrp_devices)
 
     #
     # Function to register this driver station control instance with the FMS. Once registered,
@@ -96,7 +82,11 @@ class DriverStation():
             data['hardware_id'] = self.config.get('uuid', 'No UUID')
             data['type'] = 'Driver Station'
             data['name'] = self.config.get('name','No Name')
-            data['ip_address'] = subprocess.check_output( ['hostname','-I'] ).decode('utf8').strip()
+            if platform.system() == 'Darwin':
+                commands = ['ipconfig', 'getifaddr', 'en0']
+            elif platform.system() == 'Linux':
+                commands = ['hostname', '-I']
+            data['ip_address'] = subprocess.check_output(commands).decode('utf8').strip()
             data['port'] = 'n/a'
             data['protocol'] = 'n/a'
             data['application'] = 'Driver Station App'
@@ -174,7 +164,7 @@ class DriverStation():
     # If an alliance has been configured for this instance, then request just those instances that are
     # associated with this instance. If not, then ask for all devices.
     # 
-    def get_devices(self):
+    def get_xrp_devices(self):
         devices = list()
 
         if not self.fms:
@@ -200,98 +190,91 @@ class DriverStation():
         return devices
         
     #
-    # Function will create an XRP control session with the specified controller instance. This function will
-    # look for an XRP device that is not yet connected to a gamepad controller and initiate the connection
+    # Function will create an XRP control session with the specified gamepad controller instance.
+    # This function will look for an XRP device that is not yet connected to a gamepad controller
+    # and initiate the connection.
     #
-    def connect_device(self, controller): 
+    def connect_device(self, gamepad_controller): 
         for device in self.devices:
             if not device.get('controller', None):
-                logger.info( 'Connecting %s at address: %s:%s to controller: %s' % \
-                              (device['name'],device['ip_address'],device['port'],controller.path) )
-                controller_instance = XrpController(path=controller.path, socket_type=device['protocol'], host=device['ip_address'], port=int(device['port']))
-                device['controller'] = controller_instance
-                control_thread = threading.Thread( target=ds_controller_service, args=(self,device,controller_instance,), daemon=True )
-                device['thread'] = control_thread
-                control_thread.start()
+                xrp_controller = XrpController(socket_type=device['protocol'], host=device['ip_address'], port=int(device['port']))
+                device['controller'] = xrp_controller
+
+                # Bind the XRP controller to the joystick instance. All events received from that joystick will
+                # be handled by the xrp controller instance.
+                self.joystick_mgr.bind_device(gamepad_controller.get_instance_id(),xrp_controller)
+                device['gamepad_controller'] = gamepad_controller.get_instance_id()
+
+                logger.info( 'Connected %s at address: %s:%s to gamepad controller: %s' % \
+                              (device['name'],device['ip_address'],device['port'],gamepad_controller.get_instance_id()) )
                 break
 
     #
     # Function is called periodically to scan for any newly connected or disconnected gamepad controllers
-    # For newly discovered controllers, a new XRP control thread will be created to service any unconnected
-    # devices. And, for any disconnected controllers, the control thread will be terminated automatically by
-    # the underlying driver, and we'll remove that controller from this driver station instance
     #
-    def scan_controllers(self):
-        new_controllers = list()
-        self.controllers = joystick.get_joysticks()
-
-        for controller in self.controllers:
-            found = False
-            for device in self.devices:
-                controller_instance = device.get('controller',None)
-                if controller_instance and controller_instance.path == controller.path:
-                    found = True
-                    break
-            if not found:
-                new_controllers.append( controller )
-
-        for new_controller in new_controllers:
-            self.connect_device(new_controller)
+    def scan_gamepad_controllers(self):
+        connected_joysticks = self.joystick_mgr.get_joysticks()
+        for joystick in connected_joysticks.values():
+            if not self.joystick_mgr.get_bound_device( joystick.get_instance_id() ):
+                self.connect_device( joystick )
 
     #
     # Function will be called periodically to look for newly discovered XRP devices and add them to the set of
     # managed devices. This function will also detect device changes or devices that are no longer reporting as healthy
     # terminate those sessions, too
     #
-    def scan_devices(self): 
-        curr_devices = self.get_devices()
+    def scan_xrp_devices(self): 
+        curr_devices = self.get_xrp_devices()
 
-        # Check for newly discovered devices or devices that have had the communication parameters modified
-        for curr_device in curr_devices:
-            found = False
-            for device in self.devices:
-                if curr_device['hardware_id'] == device['hardware_id']:
-                    found = True
-                    break
-
-            if not found:
-                logger.info( 'Found new device: %s, queuing for connection' % (curr_device['hardware_id']) )
-                self.devices.append(curr_device)
-            else:
-                # Update any parameters and look for meaningful changes
-                device['name'] = curr_device['name']
-                if device['ip_address'] != curr_device['ip_address']:
-                    self.remove_device( device, 'IP address is different (%s vs %s), terminating connection' % \
-                                        (device['ip_address'],curr_device['ip_address']) )
-                device['ip_address'] = curr_device['ip_address']
-
-                if device['port'] != curr_device['port']:
-                    self.remove_device( device, 'IP port is different (%s vs %s), terminating connection' % \
-                                        (device['port'],curr_device['port']) )
-                device['port'] = curr_device['port']
-
-                if device['protocol'] != curr_device['protocol']:
-                    self.remove_device( device, 'Protocol is different (%s vs %s), terminating connection' % \
-                                        (device['protocol'],curr_device['protocol']) )
-                device['protocol'] = curr_device['protocol']
-
-                if device['protocol'] != curr_device['protocol'] and curr_device['state'] == 'unknown':
-                    self.remove_device( device, 'State has changed (%s vs %s), terminating connection' % \
-                                        (device['state'],curr_device['state']) )
-                    terminate_controller_connection = True
-                device['state'] = curr_device['state'].lower()
-
-        # Now look to see if any of the devices are no longer being managed by this instance, and remove them
-        # from the device table
-        for device in self.devices:
-            found = False
+        if len(curr_devices) > 0:
+            # Check for newly discovered devices or devices that have had the communication parameters modified
             for curr_device in curr_devices:
-                if curr_device['hardware_id'] == device['hardware_id']:
-                    found = True
-                    break
+                found = False
+                for device in self.devices:
+                    if curr_device['hardware_id'] == device['hardware_id']:
+                        found = True
+                        break
 
-            if not found:
-                self.remove_device( device, 'No longer assigned to this instance' )
+                if not found:
+                    logger.info( 'Found new device: %s, queuing for connection' % (curr_device['hardware_id']) )
+                    self.devices.append(curr_device)
+                else:
+                    # Update any parameters and look for meaningful changes
+                    device['name'] = curr_device['name']
+                    if device['ip_address'] != curr_device['ip_address']:
+                        self.remove_device( device, 'IP address is different (%s vs %s), terminating connection' % \
+                                            (device['ip_address'],curr_device['ip_address']) )
+                    device['ip_address'] = curr_device['ip_address']
+
+                    if device['port'] != curr_device['port']:
+                        self.remove_device( device, 'IP port is different (%s vs %s), terminating connection' % \
+                                            (device['port'],curr_device['port']) )
+                    device['port'] = curr_device['port']
+
+                    if device['protocol'] != curr_device['protocol']:
+                        self.remove_device( device, 'Protocol is different (%s vs %s), terminating connection' % \
+                                            (device['protocol'],curr_device['protocol']) )
+                    device['protocol'] = curr_device['protocol']
+
+                    if device['protocol'] != curr_device['protocol'] and curr_device['state'] == 'unknown':
+                        self.remove_device( device, 'State has changed (%s vs %s), terminating connection' % \
+                                            (device['state'],curr_device['state']) )
+                        terminate_controller_connection = True
+                    device['state'] = curr_device['state'].lower()
+
+            # Now look to see if any of the devices are no longer being managed by this instance, and remove them
+            # from the device table
+            for device in self.devices:
+                found = False
+                for curr_device in curr_devices:
+                    if curr_device['hardware_id'] == device['hardware_id']:
+                        found = True
+                        break
+
+                if not found:
+                    self.remove_device( device, 'No longer assigned to this instance' )
+        else:
+            logger.info( 'No devices assigned to this instance' )
 
     #
     # Utility function to remove the specified device from the table of managed devices. The device controller
@@ -299,11 +282,10 @@ class DriverStation():
     #
     def remove_device(self, device, msg):
         logger.info( 'Device: %s, ID: %s - %s' % (device['name'],device['hardware_id'],msg) )
-        controller = device.get('controller', None)
-        if controller:
-            controller.terminate_read_loop = True
+        device_binding = device.get( 'gamepad_controller', None )
+        if device_binding:
+            self.joystick_mgr.remove_device_binding(device['gamepad_controller'])
         self.devices.remove( device )
-
                 
 #
 # Signal handler for the signals to gracefully terminate the service
@@ -313,12 +295,23 @@ def shutdown_handler(signum, frame):
     sys.exit(0)
 
 def shutdown_all():
-    logger.info( 'Terminating controller service threads' )
-    for device in ds.devices:
-        controller = device.get('controller', None)
-        if controller:
-            controller.terminate_read_loop = True
+    logger.info( 'Terminating service threads' )
+    ds.shutdown = True
     time.sleep(2)
+
+def ds_scheduler_service( ds ):
+    delay = 0.5
+    logger.info( 'Driver Station Scheduler Started.' )
+    while not ds.shutdown:
+        try:
+            ds.scheduler.run_pending()
+            time.sleep( delay )
+        except KeyboardInterrupt:
+            logger.info( 'Initiating shutdown from keyboard' )
+            shutdown_all()
+
+    logger.info( 'Driver Station Scheduler Terminated.' )
+    
 
 if __name__ == '__main__':
 
@@ -349,18 +342,15 @@ if __name__ == '__main__':
     ds = DriverStation(config)
 
     # retrieve the list of XRP devices associated with this driver station instance
-    ds.scan_devices()
+    ds.scan_xrp_devices()
 
     # perform an initial scan for gamepad controllers and associate the controllers with discovered XRP devices
-    ds.scan_controllers()
+    ds.scan_gamepad_controllers()
 
-    delay = 0.5
-    while True:
-        try:
-            ds.scheduler.run_pending()
-            time.sleep( delay )
-        except KeyboardInterrupt:
-            logger.info( 'Initiating shutdown from keyboard' )
-            shutdown_all()
-                
+    threading.Thread( target=ds_scheduler_service, args=(ds,), daemon=True ).start()
+
+    ds.joystick_mgr.run()
+
+    shutdown_all()
+
     logger.info( 'Driver Station Application Terminated.' )
