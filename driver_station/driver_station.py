@@ -19,6 +19,7 @@ from safe_scheduler import SafeScheduler
 
 from joystick_mgr import JoystickMgr
 from xrp_controller import XrpController
+from getip import get_ip
 
 def joystick_service( joystick_mgr ):
     joystick_mgr.run()
@@ -82,11 +83,7 @@ class DriverStation():
             data['hardware_id'] = self.config.get('uuid', 'No UUID')
             data['type'] = 'Driver Station'
             data['name'] = self.config.get('name','No Name')
-            if platform.system() == 'Darwin':
-                commands = ['ipconfig', 'getifaddr', 'en0']
-            elif platform.system() == 'Linux':
-                commands = ['hostname', '-I']
-            data['ip_address'] = subprocess.check_output(commands).decode('utf8').strip()
+            data['ip_address'] = get_ip()
             data['port'] = 'n/a'
             data['protocol'] = 'n/a'
             data['application'] = 'Driver Station App'
