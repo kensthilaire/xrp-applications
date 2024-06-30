@@ -13,7 +13,7 @@ if os_type == 'Linux':
 elif os_type == 'Darwin':
     syslog_address = '/var/run/syslog'
 elif os_type == 'Windows':
-    syslog_address = '/dev/log'
+    syslog_address = ('localhost', 514)
 
 handler = logging.handlers.SysLogHandler(address = syslog_address)
 logger.addHandler(handler)
