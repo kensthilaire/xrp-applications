@@ -14,9 +14,14 @@ class Device(models.Model):
     ]
 
     ALLIANCES = [
-        ('any', 'ANY'),
-        ('red', 'RED'),
-        ('blue', 'BLUE')
+        ('any',    'ANY'),
+        ('red',    'RED'),
+        ('blue',   'BLUE'),
+        ('purple', 'PURPLE'),
+        ('green',  'GREEN'),
+        ('orange', 'ORANGE'),
+        ('pink',   'PINK'),
+        ('yellow', 'YELLOW')
     ]
 
     hardware_id    = models.CharField(max_length = 36, blank=False, default='Unassigned')
