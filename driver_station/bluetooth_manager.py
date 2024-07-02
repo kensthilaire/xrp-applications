@@ -45,6 +45,7 @@ class BluetoothManager():
                                 self.ble.stop_scan()
                                 break
                 except BleakError:
+                    #logging.exception( 'Caught Bluetooth Error, will pause then retry' )
                     logger.info( 'Caught Bluetooth Error, will pause then retry' )
                     time.sleep(3)
 

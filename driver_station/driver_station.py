@@ -75,6 +75,7 @@ class DriverStation():
                     logger.error( 'No FMS available, will try again in 30 seconds' )
                     time.sleep(30)
 
+        self.ble_manager = None
         if self.config.get('bluetooth',False) == True:
             self.ble_manager = BluetoothManager()
 
