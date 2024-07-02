@@ -10,13 +10,18 @@ class Device(models.Model):
 
     PROTOCOLS = [
         ('tcp', 'TCP'),
-        ('udp', 'UDP')
+        ('bluetooth', 'BLUETOOTH'),
     ]
 
     ALLIANCES = [
-        ('any', 'ANY'),
-        ('red', 'RED'),
-        ('blue', 'BLUE')
+        ('any',    'ANY'),
+        ('red',    'RED'),
+        ('blue',   'BLUE'),
+        ('purple', 'PURPLE'),
+        ('green',  'GREEN'),
+        ('orange', 'ORANGE'),
+        ('pink',   'PINK'),
+        ('yellow', 'YELLOW')
     ]
 
     hardware_id    = models.CharField(max_length = 36, blank=False, default='Unassigned')
@@ -32,6 +37,7 @@ class Device(models.Model):
     last_reported  = models.CharField(max_length = 64, blank=True, default='Never')
     last_timestamp = models.PositiveIntegerField(blank=True, default=0)
     alliance       = models.CharField(max_length = 32, choices=ALLIANCES, blank=True, default='ANY')
+    ble_service    = models.CharField(max_length = 32, blank=True, default='Unknown')
 
     def __str__(self):
         return self.hardware_id
