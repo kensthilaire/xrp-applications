@@ -1,0 +1,24 @@
+#
+$ mkdir ~/GitHub
+$ mkdir ~/Envs
+$ cd ~/GitHub
+$ git clone https://github.com/kensthilaire/xrp-applications.git
+
+$ cd ~/GitHub/xrp-applications/driver_station
+
+# Check out the pygame branch for the latest support for Xbox controllers
+$ git checkout pygame
+
+# Install Python from USB or from download
+
+# To create a virtual environment
+$ python -m venv ~/Envs/pygame
+
+# Activate a virtual environment from Git Bash
+$ . /Envs/pygame/Scripts/activate
+
+# Install all required python packages for the driver station
+$ pip install -r requirements.txt
+
+# Test install
+$ python xrp_controller.py --help
