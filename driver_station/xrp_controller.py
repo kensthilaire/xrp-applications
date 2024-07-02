@@ -44,6 +44,7 @@ class XrpController():
     def __init__(self, socket_type='UDP', host='', port=9999):
 
         self.shutdown = False
+        self.curr_values = {}
 
         self.host = host
         self.port = int(port)
@@ -110,8 +111,11 @@ class XrpController():
                 if control['type'] == 'AXIS':
                     # for the axis type, send the value rounded to the nearest 2 decimal points
                     value = event['rounded_value']
-                    command = '%s:%s:%f' % ('Event',name, value) 
-                    logger.debug( 'Axis Type: %s, Value: %f' % (name,value) )
+                    if self.curr_values.get(name, 0.0) != value:
+                        # only send the command if the value has changed
+                        self.curr_values[name] = value
+                        command = '%s:%s:%f' % ('Event',name, value) 
+                        logger.debug( 'Axis Type: %s, Value: %f' % (name,value) )
                 elif control['type'] == 'BUTTON':
                     # for the button type, send the value reported by the button (1:PRESSED or 0:RELEASED)
                     value = event['value']
@@ -128,10 +132,10 @@ class XrpController():
                 if command:
                     logger.debug( 'Sending: %s' % command )
                     command += '\n'
-                    if self.socket_type == 'UDP':
-                        self.socket.sendto( command.encode('utf-8'), (self.host,self.port) )
                     if self.socket_type == 'TCP':
                         self.socket.sendall( command.encode('utf-8') )
+                    elif self.socket_type == 'UDP':
+                        self.socket.sendto( command.encode('utf-8'), (self.host,self.port) )
 
         except KeyError:
             pass
