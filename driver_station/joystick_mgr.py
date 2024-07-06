@@ -32,7 +32,9 @@ class JoystickMgr:
         0:  { 'name': 'LeftJoystickX', 'min': -1.0, 'max': 1.0 },
         1:  { 'name': 'LeftJoystickY', 'min': -1.0, 'max': 1.0 },
         2:  { 'name': 'RightJoystickX', 'min': -1.0, 'max': 1.0 },
-        3:  { 'name': 'RightJoystickY', 'min': -1.0, 'max': 1.0 }
+        3:  { 'name': 'RightJoystickY', 'min': -1.0, 'max': 1.0 },
+        4:  { 'name': 'LeftTrigger', 'min': -1.0, 'max': 1.0, 'scale': True },
+        5:  { 'name': 'RightTrigger', 'min': -1.0, 'max': 1.0, 'scale': True }
     }
 
     HATS = {
@@ -108,7 +110,12 @@ class JoystickMgr:
             axis = self.AXIS_TYPES.get(event.axis, None)
             if axis:
                 decoded_event['name'] = axis['name']
-                decoded_event['value'] = event.value / axis['max']
+                if scaled = axis.get('scale', False) == True:
+                    range = axis['max'] - axis['min']
+                    decoded_event['value'] = (event.value + (range/2))/range
+                    decoded_event['value'] *= -1.0
+                else:
+                    decoded_event['value'] = event.value / axis['max']
                 decoded_event['rounded_value'] = round((event.value / axis['max']), 1)
         elif event.type == pygame.JOYHATMOTION:
             decoded_event['type'] = 'HAT'
