@@ -98,9 +98,19 @@ class XrpController():
         except ConnectionResetError:
             logger.error( 'Server Connection Error from %s:%d, Restablishing connection' % (self.host,self.port) )
             self.initialize_client_socket()
+        except ConnectionRefusedError:
+            logger.error( 'Connection Refused Error from %s:%d, Restablishing connection' % (self.host,self.port) )
+            self.initialize_client_socket()
+        except ConnectionAbortedError:
+            logger.error( 'Connection Aborted Error from %s:%d, Restablishing connection' % (self.host,self.port) )
+            self.initialize_client_socket()
         except BrokenPipeError:
             logger.error( 'Client Connection Lost to %s:%d, Restablishing connection' % (self.host,self.port) )
             self.initialize_client_socket()
+        except OSError:
+            logger.error( 'Unknown OS Error from %s:%d, Restablishing connection' % (self.host,self.port) )
+            self.initialize_client_socket()
+
 
     def send_event( self, event ):
         command = None
