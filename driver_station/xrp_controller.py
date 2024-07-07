@@ -160,6 +160,15 @@ class XrpController():
     def clear_gamepad_id(self):
         self.gamepad_id = None
 
+def joystick_callback( event_type, gamepad_id ):
+    if event_type == 'CONNECTED':
+        if xrp_controllers:
+            for controller in xrp_controllers:
+                if controller.get_gamepad_id() == None:
+                    logger.info( 'Binding Joystick %d to XRP controller' % gamepad_id )
+                    joystick_mgr.bind_device(gamepad_id,controller)
+                    break
+
 def shutdown_handler(signum, frame):
     shutdown_all()
     sys.exit(0)
@@ -254,7 +263,7 @@ if __name__ == '__main__':
 
     # launch the joystick manager run loop to process events from the gamepad controllers. This function will not return until
     # the program is terminated
-    joystick_mgr.run()
+    joystick_mgr.run( mgmt_callback=joystick_callback)
 
     # perform any final cleanup as part of the shutdown
     shutdown_all()

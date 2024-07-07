@@ -113,6 +113,7 @@ class JoystickMgr:
         self.controller_maps = {}
         self.curr_hat_x = {}
         self.curr_hat_y = {}
+        self.mgmt_callback = None
 
         pygame.init()
 
@@ -252,10 +253,17 @@ class JoystickMgr:
                     else:
                         logger.info( 'DirectInput Joystick: %s Connected' % joystick.get_instance_id() )
                         self.controller_maps[joystick.get_instance_id()] = controller_maps['DirectInput']
+
+                    if self.mgmt_callback:
+                        self.mgmt_callback( decoded_event['value'], joystick.get_instance_id() )
+
                 elif decoded_event['value'] == 'DISCONNECTED':
                     logger.info( 'Joystick %d disconnected' % event.instance_id )
                     self.remove_device_binding(event.instance_id)
                     del self.joysticks[event.instance_id]
+
+                    if self.mgmt_callback:
+                        self.mgmt_callback( decoded_event['value'], event.instance_id )
 
             elif decoded_event['type'] == 'QUIT':
                 logger.debug( 'Quit received, returning done' )
@@ -263,7 +271,8 @@ class JoystickMgr:
 
         return done
 
-    def run(self):
+    def run(self, mgmt_callback=None):
+        self.mgmt_callback = mgmt_callback
         done = False
         while not done:
             try:
