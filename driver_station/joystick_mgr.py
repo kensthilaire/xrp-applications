@@ -8,43 +8,79 @@ import time
 
 from logger import logger
 
-class JoystickMgr:
+controller_maps = {
+    "XInput" : {
 
-    BUTTONS = {
-        0: { 'name': 'ButtonX' },
-        1: { 'name': 'ButtonA' },
-        2: { 'name': 'ButtonB' },
-        3: { 'name': 'ButtonY' },
-        4: { 'name': 'LeftBumper' },
-        5: { 'name': 'RightBumper' },
-        6: { 'name': 'LeftTrigger' },
-        7: { 'name': 'RightTrigger' },
-        8: { 'name': 'Select' },
-        9: { 'name': 'Start' }
+        "BUTTONS" : {
+            0: { 'name': 'ButtonA' },
+            1: { 'name': 'ButtonB' },
+            2: { 'name': 'ButtonX' },
+            3: { 'name': 'ButtonY' },
+            4: { 'name': 'LeftBumper' },
+            5: { 'name': 'RightBumper' },
+            6: { 'name': 'Select' },
+            7: { 'name': 'Start' },
+            8: { 'name': 'Logo' },
+            9: { 'name': 'Unknown' },
+           10: { 'name': 'Unknown' }
+        },
+
+        "AXES" : {
+            0:  { 'name': 'LeftJoystickX', 'min': -1.0, 'max': 1.0 },
+            1:  { 'name': 'LeftJoystickY', 'min': -1.0, 'max': 1.0 },
+            2:  { 'name': 'LeftTrigger', 'min': -1.0, 'max': 1.0, 'scale': True },
+            3:  { 'name': 'RightJoystickX', 'min': -1.0, 'max': 1.0 },
+            4:  { 'name': 'RightJoystickY', 'min': -1.0, 'max': 1.0 },
+            5:  { 'name': 'RightTrigger', 'min': -1.0, 'max': 1.0, 'scale': True }
+        },
+
+        "HATS" : {
+            0: { 'name': 'HatX', 'min': -1, 'max': 1 },
+            1: { 'name': 'HatY', 'min': -1, 'max': 1 }
+        }
+    },
+
+    "DirectInput" : {
+        "BUTTONS" : {
+            0: { 'name': 'ButtonX' },
+            1: { 'name': 'ButtonA' },
+            2: { 'name': 'ButtonB' },
+            3: { 'name': 'ButtonY' },
+            4: { 'name': 'LeftBumper' },
+            5: { 'name': 'RightBumper' },
+            6: { 'name': 'LeftTrigger' },
+            7: { 'name': 'RightTrigger' },
+            8: { 'name': 'Select' },
+            9: { 'name': 'Start' },
+           10: { 'name': 'Unknown' },
+           11: { 'name': 'Unknown' }
+        },
+
+        "AXES" : {
+            0:  { 'name': 'LeftJoystickX', 'min': -1.0, 'max': 1.0 },
+            1:  { 'name': 'LeftJoystickY', 'min': -1.0, 'max': 1.0 },
+            2:  { 'name': 'RightJoystickX', 'min': -1.0, 'max': 1.0 },
+            3:  { 'name': 'RightJoystickY', 'min': -1.0, 'max': 1.0 }
+        },
+
+        "HATS" : {
+            0: { 'name': 'HatX', 'min': -1, 'max': 1 },
+            1: { 'name': 'HatY', 'min': -1, 'max': 1 }
+        }
     }
+}
+
+class JoystickMgr:
 
     BUTTON_STATES = {
         0: 'RELEASED',
         1: 'PRESSED'
     }
 
-    AXIS_TYPES = {
-        0:  { 'name': 'LeftJoystickX', 'min': -1.0, 'max': 1.0 },
-        1:  { 'name': 'LeftJoystickY', 'min': -1.0, 'max': 1.0 },
-        2:  { 'name': 'RightJoystickX', 'min': -1.0, 'max': 1.0 },
-        3:  { 'name': 'RightJoystickY', 'min': -1.0, 'max': 1.0 },
-        4:  { 'name': 'LeftTrigger', 'min': -1.0, 'max': 1.0, 'scale': True },
-        5:  { 'name': 'RightTrigger', 'min': -1.0, 'max': 1.0, 'scale': True }
-    }
-
-    HATS = {
-        0: { 'name': 'HatX', 'min': -1, 'max': 1 },
-        1: { 'name': 'HatY', 'min': -1, 'max': 1 }
-    }
-
     def __init__(self, scan_for_joysticks=True):
         self.joysticks = {}
         self.devices = {}
+        self.controller_maps = {}
         self.curr_hat_x = {}
         self.curr_hat_y = {}
 
@@ -93,21 +129,23 @@ class JoystickMgr:
     def decode_event(self, event):
         decoded_event = { 'type': 'UNKNOWN', 'name': '', 'value': None }
 
+        print( 'Event: %s' % str(event) )
+
         if event.type == pygame.JOYBUTTONDOWN:
             decoded_event['type'] = 'BUTTON'
-            button = self.BUTTONS.get(event.button, None)
+            button = self.controller_maps[event.instance_id]['BUTTONS'].get(event.button,None)
             if button:
                 decoded_event['name'] = button['name']
                 decoded_event['value'] = 1
         elif event.type == pygame.JOYBUTTONUP:
             decoded_event['type'] = 'BUTTON'
-            button = self.BUTTONS.get(event.button, None)
+            button = self.controller_maps[event.instance_id]['BUTTONS'].get(event.button,None)
             if button:
                 decoded_event['name'] = button['name']
                 decoded_event['value'] = 0
         elif event.type == pygame.JOYAXISMOTION:
             decoded_event['type'] = 'AXIS'
-            axis = self.AXIS_TYPES.get(event.axis, None)
+            axis = self.controller_maps[event.instance_id]['AXES'].get(event.axis,None)
             value = 0.0
             if axis:
                 decoded_event['name'] = axis['name']
@@ -124,13 +162,13 @@ class JoystickMgr:
             # look for a change in the hat values for X and Y coordinates and map any
             # change to discrete events corresponding to the changed setting
             if self.curr_hat_x[event.instance_id] != event.value[0]:
-                hat = self.HATS.get(0, None)
+                hat = self.controller_maps[event.instance_id]['HATS'].get(0,None)
                 if hat:
                     decoded_event['name'] = hat['name']
                     decoded_event['value'] = event.value[0]
                     self.curr_hat_x[event.instance_id] = event.value[0]
             elif self.curr_hat_y[event.instance_id] != event.value[1]:
-                hat = self.HATS.get(1, None)
+                hat = self.controller_maps[event.instance_id]['HATS'].get(1,None)
                 if hat:
                     decoded_event['name'] = hat['name']
                     decoded_event['value'] = event.value[1]
@@ -139,17 +177,10 @@ class JoystickMgr:
             decoded_event['type'] = 'MGMT'
             decoded_event['name'] = 'JOYSTICK'
             decoded_event['value'] = 'CONNECTED'
-            joystick = pygame.joystick.Joystick(event.device_index)
-            logger.info( 'Joystick: %s Connected' % joystick.get_instance_id() )
-            self.joysticks[joystick.get_instance_id()] = joystick
-            self.curr_hat_x[joystick.get_instance_id()] = 0
-            self.curr_hat_y[joystick.get_instance_id()] = 0
         elif event.type == pygame.JOYDEVICEREMOVED:
             decoded_event['type'] = 'MGMT'
             decoded_event['name'] = 'JOYSTICK'
             decoded_event['value'] = 'DISCONNECTED'
-            del self.joysticks[event.instance_id]
-            logger.info( 'Joystick %d disconnected' % event.instance_id )
         elif event.type == pygame.KEYDOWN:
             # Check for a ctrl-C being pressed and raise the KeyboardInterrupt 
             # exception to terminate the program
@@ -171,6 +202,21 @@ class JoystickMgr:
                     logger.debug( 'No Device Bound To Process Event: %s %s %s' % (decoded_event['name'], decoded_event['type'], decoded_event['value']) )
             elif decoded_event['type'] == 'MGMT':
                 logger.debug( 'Management Event: %s %s' % (decoded_event['name'], decoded_event['value']) )
+                if decoded_event['value'] == 'CONNECTED':
+                    joystick = pygame.joystick.Joystick(event.device_index)
+                    self.joysticks[joystick.get_instance_id()] = joystick
+                    self.curr_hat_x[joystick.get_instance_id()] = 0
+                    self.curr_hat_y[joystick.get_instance_id()] = 0
+                    if joystick.get_numaxes() == 6:
+                        logger.info( 'XInput Joystick: %s Connected' % joystick.get_instance_id() )
+                        self.controller_maps[joystick.get_instance_id()] = controller_maps['XInput']
+                    else:
+                        logger.info( 'DirectInput Joystick: %s Connected' % joystick.get_instance_id() )
+                        self.controller_maps[joystick.get_instance_id()] = controller_maps['DirectInput']
+                elif decoded_event['value'] == 'DISCONNECTED':
+                    del self.joysticks[event.instance_id]
+                    logger.info( 'Joystick %d disconnected' % event.instance_id )
+
             elif decoded_event['type'] == 'QUIT':
                 logger.debug( 'Quit received, returning done' )
                 done = True
