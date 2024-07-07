@@ -193,15 +193,21 @@ class DriverStation():
     #
     def connect_device(self, gamepad_controller): 
         for device in self.devices:
-            if not device.get('controller', None):
+            bind_controller = False
+            xrp_controller = device.get('controller', None)
+            if xrp_controller == None:
                 xrp_controller = XrpController(socket_type=device['protocol'], host=device['ip_address'], port=int(device['port']))
                 device['controller'] = xrp_controller
 
+                bind_controller = True
+            elif xrp_controller.get_gamepad_id() == None:
+                bind_controller = True
+
+            if bind_controller:
                 # Bind the XRP controller to the joystick instance. All events received from that joystick will
                 # be handled by the xrp controller instance.
                 self.joystick_mgr.bind_device(gamepad_controller.get_instance_id(),xrp_controller)
-                device['gamepad_controller'] = gamepad_controller.get_instance_id()
-
+                
                 logger.info( 'Connected %s at address: %s:%s to gamepad controller: %s' % \
                               (device['name'],device['ip_address'],device['port'],gamepad_controller.get_instance_id()) )
                 break
@@ -279,9 +285,11 @@ class DriverStation():
     #
     def remove_device(self, device, msg):
         logger.info( 'Device: %s, ID: %s - %s' % (device['name'],device['hardware_id'],msg) )
-        device_binding = device.get( 'gamepad_controller', None )
-        if device_binding:
-            self.joystick_mgr.remove_device_binding(device['gamepad_controller'])
+        xrp_controller = device.get('controller', None)
+        if xrp_controller:
+            gamepad_id = xrp_controller.get_gamepad_id()
+            if gamepad_id != None:
+                self.joystick_mgr.remove_device_binding(gamepad_id)
         self.devices.remove( device )
                 
 #

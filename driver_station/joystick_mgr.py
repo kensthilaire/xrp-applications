@@ -136,6 +136,7 @@ class JoystickMgr:
     # an associated device
     #
     def bind_device(self, joystick_key, device):
+        device.set_gamepad_id(joystick_key)
         self.devices[joystick_key] = device
 
     def get_bound_device(self, joystick_key):
@@ -144,6 +145,9 @@ class JoystickMgr:
 
     def remove_device_binding(self, joystick_key):
         try:
+            device = self.get_bound_device(joystick_key)
+            if device:
+                device.clear_gamepad_id()
             self.devices[joystick_key] = None
         except:
             pass
@@ -249,8 +253,9 @@ class JoystickMgr:
                         logger.info( 'DirectInput Joystick: %s Connected' % joystick.get_instance_id() )
                         self.controller_maps[joystick.get_instance_id()] = controller_maps['DirectInput']
                 elif decoded_event['value'] == 'DISCONNECTED':
-                    del self.joysticks[event.instance_id]
                     logger.info( 'Joystick %d disconnected' % event.instance_id )
+                    self.remove_device_binding(event.instance_id)
+                    del self.joysticks[event.instance_id]
 
             elif decoded_event['type'] == 'QUIT':
                 logger.debug( 'Quit received, returning done' )

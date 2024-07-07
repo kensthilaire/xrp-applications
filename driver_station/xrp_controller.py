@@ -51,6 +51,8 @@ class XrpController():
         self.socket = None
         self.socket_type = socket_type.upper()
 
+        self.gamepad_id = None
+
         self.initialize_client_socket()
 
     def __str__(self):
@@ -111,7 +113,6 @@ class XrpController():
             logger.error( 'Unknown OS Error from %s:%d, Restablishing connection' % (self.host,self.port) )
             self.initialize_client_socket()
 
-
     def send_event( self, event ):
         command = None
         name = event['name']
@@ -149,6 +150,15 @@ class XrpController():
 
         except KeyError:
             pass
+
+    def set_gamepad_id( self, gamepad_id ):
+        self.gamepad_id = gamepad_id
+
+    def get_gamepad_id(self):
+        return self.gamepad_id
+
+    def clear_gamepad_id(self):
+        self.gamepad_id = None
 
 def shutdown_handler(signum, frame):
     shutdown_all()
