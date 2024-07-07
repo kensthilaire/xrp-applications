@@ -2,6 +2,7 @@ import pygame
 
 import argparse
 import logging
+import platform
 import sys
 import threading
 import time
@@ -10,7 +11,6 @@ from logger import logger
 
 controller_maps = {
     "XInput" : {
-
         "BUTTONS" : {
             0: { 'name': 'ButtonA' },
             1: { 'name': 'ButtonB' },
@@ -39,6 +39,36 @@ controller_maps = {
             1: { 'name': 'HatY', 'min': -1, 'max': 1 }
         }
     },
+
+    "XInputWindows" : {    
+        "BUTTONS" : {
+            0: { 'name': 'ButtonA' },
+            1: { 'name': 'ButtonB' },
+            2: { 'name': 'ButtonX' }, 
+            3: { 'name': 'ButtonY' },
+            4: { 'name': 'LeftBumper' },
+            5: { 'name': 'RightBumper' },
+            6: { 'name': 'Select' },
+            7: { 'name': 'Start' },
+            8: { 'name': 'Unknown' },
+            9: { 'name': 'Unknown' },
+           10: { 'name': 'Logo' }
+        },      
+                    
+        "AXES" : {  
+            0:  { 'name': 'LeftJoystickX', 'min': -1.0, 'max': 1.0 },
+            1:  { 'name': 'LeftJoystickY', 'min': -1.0, 'max': 1.0 },
+            2:  { 'name': 'RightJoystickX', 'min': -1.0, 'max': 1.0 },
+            3:  { 'name': 'RightJoystickY', 'min': -1.0, 'max': 1.0 },
+            4:  { 'name': 'LeftTrigger', 'min': -1.0, 'max': 1.0, 'scale': True },
+            5:  { 'name': 'RightTrigger', 'min': -1.0, 'max': 1.0, 'scale': True }
+        },  
+    
+        "HATS" : {
+            0: { 'name': 'HatX', 'min': -1, 'max': 1 },
+            1: { 'name': 'HatY', 'min': -1, 'max': 1 }
+        }       
+    },          
 
     "DirectInput" : {
         "BUTTONS" : {
@@ -208,8 +238,13 @@ class JoystickMgr:
                     self.curr_hat_x[joystick.get_instance_id()] = 0
                     self.curr_hat_y[joystick.get_instance_id()] = 0
                     if joystick.get_numaxes() == 6:
-                        logger.info( 'XInput Joystick: %s Connected' % joystick.get_instance_id() )
-                        self.controller_maps[joystick.get_instance_id()] = controller_maps['XInput']
+                        os_type = platform.system()
+                        if os_type == 'Windows':
+                            logger.info( 'Windows XInput Joystick: %s Connected' % joystick.get_instance_id() )
+                            self.controller_maps[joystick.get_instance_id()] = controller_maps['XInputWindows']
+                        else:
+                            logger.info( 'XInput Joystick: %s Connected' % joystick.get_instance_id() )
+                            self.controller_maps[joystick.get_instance_id()] = controller_maps['XInput']
                     else:
                         logger.info( 'DirectInput Joystick: %s Connected' % joystick.get_instance_id() )
                         self.controller_maps[joystick.get_instance_id()] = controller_maps['DirectInput']
