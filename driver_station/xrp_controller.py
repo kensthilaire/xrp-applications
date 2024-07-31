@@ -236,6 +236,12 @@ if __name__ == '__main__':
         # retrieve the set of devices configured for this controller instance
         xrp_devices = config.get('devices', list())
 
+        xrp_ipaddr = config.get('xrp_ipaddr',None)
+        if xrp_ipaddr:
+            name = 'XRP-%s' % xrp_ipaddr.split('.')[-1]
+            logger.debug( 'Configuring %s at %s:%s' % (name,xrp_ipaddr,options.xrp_port) )
+            xrp_devices.append( { 'name': name, 'ipaddr': xrp_ipaddr, 'port':int(options.xrp_port) } )
+            
     # list of xrp_controllers instantiated as part of this application
     xrp_controllers = list()
 
