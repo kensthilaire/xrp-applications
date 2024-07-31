@@ -16,22 +16,7 @@ import urequests as requests
 import uselect as select
 import _thread
 
-from ble_uart_stream import BLEUARTStream
-
-#
-# Function to read a JSON formatted config file with the XRP configuration
-# information to set up the network interface and other control parameters
-#
-def read_config( filename='config.json' ):
-    data = ''
-
-    with open( filename ) as fd:
-        try:
-            data = json.load(fd)
-        except ValueError as err:
-            print( err )
-    return data
-
+from xrp_config import read_config
 #
 # Function to retrieve a string representation of the unique hardware ID 
 # of the connected XRP
@@ -91,7 +76,8 @@ event_map = {
     'RY': 'RightJoystickY',
     'RT': 'RightTrigger',
     'HX': 'HatX',
-    'HY': 'HatY'
+    'HY': 'HatY',
+    'LED' : 'LED
 }
 
 #
@@ -237,16 +223,20 @@ class XrpControl():
             print( 'Unable to set up the network for %s mode' % network_config['network_type'] )
             sys.exit(0)
 
-    # FIXME: Update the function header to reflect the addition of bluetooth and the removal of UDP.
-    # Function will initialize the local server socket based on the configuration.  TCP (Transmission Control Protocol). 
-    # UDP sockets are connectionless and provide an efficient way to pass data. UDP sockets are 
-    # "unreliable" in that delivery is not guaranteed, so some packet loss may occur. TCP sockets, on 
-    # the other hand, are connection-oriented and data delivery is guaranteed. There is additional
-    # overhead with TCP sockets which may result in delays.
+    # Function will initialize the local server socket based on the configuration. Currently, only
+    # TCP (Transmission Control Protocol) sockets are supported. TCP sockets are connection-oriented 
+    # and data delivery is guaranteed. 
     #
-    # For the XRP, either UDP or TCP sockets should work just fine. The defined control protocol uses
-    # short messages between the driver station control application and the XRP, so the observed behavior
-    # will likely be similar between the two socket protocols.
+    # The defined control protocol uses short messages between the driver station control application 
+    # and the XRP, so the observed behavior with TCP has not shown any noticable performance degredation.
+    #
+    # Note: Bluetooth connections are being developed as an alternative to TCP over WIFI connections, and this
+    #       application will be updated to include Bluetooth as a connection type once the testing has been
+    #       completed.
+    #
+    # Note 2: UDP sockets were also implemented initially, thinking that the connection-less model may
+    #       perform better than TCP. But in practice, the TCP connections were shown to have more 
+    #       consistent behavior and the UDP support has been removed.
     # 
     async def server_task(self):
         server_config = self.config['server']
@@ -257,11 +247,6 @@ class XrpControl():
             self.server = await asyncio.start_server(self.handle_tcp_client, self.my_ipaddr, self.my_port)
             print( 'Created TCP socket to listen for connections on %s:%d' % (self.my_ipaddr, self.my_port) )
             self.status = 'Waiting For Connection'
-        elif connection_type == 'BLUETOOTH':
-            self.connection = None
-            print( 'Initializing BLUETOOTH service for %s' % server_config['name'])
-            self.ble_stream = BLEUARTStream( server_config['name'] )
-            await self.handle_bluetooth_client()
         else:
             print( 'Unknown socket type: %s' % connection_type )
     
@@ -312,46 +297,6 @@ class XrpControl():
             
             self.process_commands( commands )
     
-    async def handle_bluetooth_client(self):
-        commands = []
-        data = bytearray(32)
-        ble_connection = 'Disconnected'
-
-        print( 'Starting Bluetooth Client Handler' )
-
-        while True:
-
-            # Check for active bluetooth connections and adjust the status of the
-            # connection accordingly
-            if len(self.ble_stream._uart._connections) > 0:
-                if ble_connection == 'Disconnected':
-                    print( 'Bluetooth Connection Established' )
-                    board.led_blink(5)
-                    time.sleep(1)
-                    board.led_off()
-
-                    ble_connection = 'Connected'
-            else:
-                if ble_connection == 'Connected':
-                    print( 'Bluetooth Connection Closed' )
-                    ble_connection = 'Disconnected'
-                
-            bytes_read = self.ble_stream.readinto(data)
-            if bytes_read:
-                decoded_data = self.partial_cmd_buffer + data[0:bytes_read].decode('utf-8')
-                # split the decoded data into separate commands delimited by a newline
-                commands = decoded_data.split('\n')
-
-                # for Bluetooth connections, each read will only contain up to 20 bytes, so the
-                # data may contain a partial command, which will be the last item in the commands
-                # list. We'll store that last item as the partial command so that we can attach the
-                # next received data to the partial command string.
-                self.partial_cmd_buffer = commands.pop()
-
-                self.process_commands( commands )
-
-            await asyncio.sleep_ms(80)
-
     def process_commands(self, commands ):
         for command in commands:
             #print( 'Command: %s' % command )
@@ -507,7 +452,6 @@ class XrpControl():
         reg_data['application'] = self.application
         reg_data['version'] = '1.0 Beta'
         reg_data['status'] = self.status
-        reg_data['ble_service'] = 'XRP-' + get_id(short_id=True)
 
         # Add in the name if configured (optional)
         try:
