@@ -18,23 +18,25 @@ from joystick_mgr import JoystickMgr
 # the controls, you can control how much extra traffic is sent down to the XRP.
 controls = {
     'ButtonA':        { 'type': 'BUTTON', 'enabled': True },
-    'ButtonB':        { 'type': 'BUTTON', 'enabled': True  },
-    'ButtonX':        { 'type': 'BUTTON', 'enabled': True  },
-    'ButtonY':        { 'type': 'BUTTON', 'enabled': True  },
-    'LeftBumper':     { 'type': 'BUTTON', 'enabled': True  },
-    'RightBumper':    { 'type': 'BUTTON', 'enabled': True  },
-    'Select':         { 'type': 'BUTTON', 'enabled': True  },
-    'Start':          { 'type': 'BUTTON', 'enabled': True  },
-    'LeftThumb':      { 'type': 'BUTTON', 'enabled': True  },
-    'RightThumb':     { 'type': 'BUTTON', 'enabled': True  },
-    'LeftTrigger':    { 'type': 'BUTTON', 'enabled': True  },
-    'RightTrigger':   { 'type': 'BUTTON', 'enabled': True  },
-    'LeftJoystickX':  { 'type': 'AXIS',   'enabled': True  },
-    'LeftJoystickY':  { 'type': 'AXIS',   'enabled': True  },
-    'RightJoystickX': { 'type': 'AXIS',   'enabled': True  },
-    'RightJoystickY': { 'type': 'AXIS',   'enabled': True  },
-    'HatX':           { 'type': 'HAT',    'enabled': True  },
-    'HatY':           { 'type': 'HAT',    'enabled': True  }
+    'ButtonB':        { 'type': 'BUTTON', 'enabled': True },
+    'ButtonX':        { 'type': 'BUTTON', 'enabled': True },
+    'ButtonY':        { 'type': 'BUTTON', 'enabled': True },
+    'LeftBumper':     { 'type': 'BUTTON', 'enabled': True },
+    'RightBumper':    { 'type': 'BUTTON', 'enabled': True },
+    'Select':         { 'type': 'BUTTON', 'enabled': True },
+    'Start':          { 'type': 'BUTTON', 'enabled': True },
+    'LeftThumb':      { 'type': 'BUTTON', 'enabled': True },
+    'RightThumb':     { 'type': 'BUTTON', 'enabled': True },
+    'LeftTrigger':    { 'type': 'BUTTON', 'enabled': True },
+    'RightTrigger':   { 'type': 'BUTTON', 'enabled': True },
+    'LeftJoystickX':  { 'type': 'AXIS',   'enabled': True },
+    'LeftJoystickY':  { 'type': 'AXIS',   'enabled': True },
+    'RightJoystickX': { 'type': 'AXIS',   'enabled': True },
+    'RightJoystickY': { 'type': 'AXIS',   'enabled': True },
+    'HatX':           { 'type': 'HAT',    'enabled': True },
+    'HatY':           { 'type': 'HAT',    'enabled': True },
+
+    'LED':            { 'type': 'CUSTOM', 'enabled': True }
 }
 
 #
@@ -43,7 +45,6 @@ controls = {
 class XrpController():
     def __init__(self, socket_type='UDP', host='', port=9999):
 
-        self.shutdown = False
         self.curr_values = {}
 
         self.host = host
@@ -54,6 +55,10 @@ class XrpController():
         self.gamepad_id = None
 
         self.initialize_client_socket()
+
+    def shutdown(self):
+        # Perform any necessary cleanup as part of shutdown
+        pass
 
     def __str__(self):
         return 'XRP Address: %s:%d, Type: %s' % (self.host,self.port,self.socket_type)
@@ -137,6 +142,10 @@ class XrpController():
                     value = event['value']
                     command = '%s:%s:%d' % ('Event',name, value) 
                     logger.debug( 'Hat Type: %s, Value: %d' % (name,value) )
+                elif control['type'] == 'CUSTOM':
+                    value = event['value']
+                    command = '%s:%s:%s' % ('Event',name, value) 
+                    logger.debug( 'Custom Event Type: %s, Value: %s' % (name,value) )
                 else:
                     logger.error( 'Unknown Event Type: %s' % name )
 
@@ -177,7 +186,7 @@ def shutdown_all():
     logger.info( 'Terminating XRP controller service' )
     if xrp_controllers:
         for controller in xrp_controllers:
-            controller.shutdown = True
+            controller.shutdown()
         time.sleep(2)
 
 if __name__ == '__main__':
