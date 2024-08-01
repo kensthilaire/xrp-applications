@@ -1,0 +1,28 @@
+{
+    "name"       : "XRP-CTRL",
+    "controller" : "lidar",
+    "socket_type": "TCP",
+    "debug"      : false,
+
+    "devices"    : [
+        {
+            "name"   : "XRP-1",
+            "ipaddr" : "<XRP IP address>",
+            "port"   : 9999
+        },
+        {
+            "name"   : "XRP-2",
+            "ipaddr" : "<another XRP IP address>",
+            "port"   : 9999
+        }
+    ],
+
+    "lidar": {
+        "enabled"          : true,
+        "capture_distance" : 30,
+        "follow_distance"  : 12,
+        "capture_zone"     : "0-60,300-359",
+        "port"             : "/dev/ttyUSB0"
+    }
+
+}
