@@ -1,17 +1,22 @@
-# Driver Station Controller for Raspberry Pi
+# Driver Station Controller for XRP
 
-This directory contains a Python application that will run on a Raspberry Pi to control an XRP robot using a Xbox Gamepad controller.
+This directory contains a Python application that will run on a computer to control an XRP robot using a gamepad controller, providing driver-operated control for your XRP.
 
 ## Compatibility
-This program has been tested on a Raspberry Pi 3b and a Raspberry Pi Zero W. When using a Pi Zero, you will likely need a USB hub to plug in the gamepad controller, keyboard, etc.
+This program has been tested on the following computer platforms:
 
-This program has been tested with a Logitech F310 Gamepad controller. Additional devices and gamepad controllers will be tested over time.
+* Windows 10/11 laptop
+* MacBook Pro (Intel-based)
+* Raspberry Pi 3b and a Raspberry Pi Zero W.
+
+This program has been tested with **`Logitech F310`** and **`Generic XBOX`** gamepad controllers. Additional devices and gamepad controllers will be tested over time.
 
 This program is written for Python version 3.
+
 ## Future Plans
 In this release, only WIFI connectivity is supported. Bluetooth support will be added in a future release.
 
-## Files
+## Relevant Files
 * config.json - JSON-formatted configuration file to set parameters for the application
 * config.py - Python module to read and parse the contents of the JSON configuration file
 * joystick.py - Python module to provide the interface to the gamepad controller
@@ -20,21 +25,86 @@ In this release, only WIFI connectivity is supported. Bluetooth support will be 
 * xrp_controller.py - Main python module that provides the interface to the XRP robot over a WIFI network. Module supports UDP and TCP socket connections to the XRP.
 
 ## Installation and Setup
-It is highly recommended to install the application using a python virtual environment. I use the virtualenvwrapper utility to manage the python virtual environments. See [here](https://virtualenvwrapper.readthedocs.io/en/latest/) for information on virtualenvwrapper.
+
+### Windows 10/11 Prerequisite Steps (Windows ONLY)
+
+In order to make your life easier dealing with python programs in the Windows environment, please perform these steps to prepare your machine to run this application
+
+#### Install Python3
+Windows does not support python natively, so you will likely need to install python manually.
+
+Download Python for Windows from [python.org/downloads/windows](https://python.org/downloads/windows) and install it for all users.
+
+#### Install Git For Windows
+
+Windows also does not have support for the **`git`** source code management utility, so we'll install that as well.
+
+Download Git For Windoes from [gitforwindows.org](https://gitforwindows.org/) and install it to your computer. It is suggested that you accept all the default options when installing Git For Windows.
+
+### Installing The Software Application (ALL Platforms)
+
+You will need to create a local **`git`** repository with the application software.
+
+On a Windows computer, launch a **`GitBash`** window.
+
+On a Mac, Raspberry Pi, or Linus computer, open up a terminal window.
 
 ```
 $ mkdir -p ~/GitHub
 $ cd ~/GitHub
 $ git clone https://github.com/kensthilaire/xrp-applications.git
 $ cd xrp-applications/driver_station
+```
+### Setting Up The Python Virtual Environment
+
+It is highly recommended to install the application using a python virtual environment. 
+
+#### Raspberry Pi, Linux, and Mac Computers
+
+On a Linux or Mac computer, I use the handy **`virtualenvwrapper`** utility to create and manage the python virtual environments. See [here](https://virtualenvwrapper.readthedocs.io/en/latest/) for information on how to install virtualenvwrapper.
+
+```
+# Create a directory where the python virtual environments will be located
+$ mkdir -p ~/Envs
+
+# Create the virtual environment
 $ mkvirtualenv xrp-control
+
+# Change to the application directory
+$ cd ~/GitHub/xrp-applications/driver_station
+
+# And, install all required python packages using pip
 $ pip3 install -r requirements.txt
 ```
-Connect your gamepad controller to any USB connector on the Raspberry Pi.  
 
-Currently, this program can communicate to the XRP over a WIFI network, with both the Raspberry Pi and the XRP attached to the same WIFI network. 
+#### Windows Computers
 
-The XRP library itself supports both Station (STA) and Access Point (AP) modes. For STA mode, both the XRP and the Raspberry Pi will connect to a separate WIFI enabled device. For AP mode, the XRP will provide the WIFI access point and the Raspberry Pi will need to connect to the SSID advertised by the XRP.
+On a Windows computer, I have not found a good alternative to **`virtualenvwrapper`**, so you will have to create and manage your virtual environment using individual shell commands. No
+
+```
+# Create a directory where the python virtual environments will be located
+$ mkdir -p ~/Envs
+
+# Create the virtual environment
+$ python -m venv ~/Envs/xrp-control
+
+# Activate a virtual environment from Git Bash
+$ . ~/Envs/pygame/Scripts/activate
+
+# Change to the application directory
+$ cd ~/GitHub/xrp-applications/driver_station
+
+# And, install all required python packages using pip
+$ pip install -r requirements.txt
+
+```
+## Connecting Your Gamepad Controller
+
+Connect your gamepad controller to any USB connector on the computer.  
+
+Currently, this program can communicate to the XRP over a WIFI network, with both the computer and the XRP attached to the same WIFI network. 
+
+The XRP library itself supports both Station (STA) and Access Point (AP) modes. For STA mode, both the XRP and the computer will connect to a separate WIFI enabled device. For AP mode, the XRP will provide the WIFI access point and the computer will need to connect to the SSID advertised by the XRP.
 
 **NOTE: For most typical situations, using the separate WIFI device and running the XRP in STA mode may prove to be easier to manage.**
 
@@ -75,12 +145,14 @@ The devices array allows for the specification of a set of XRPs with known IP ad
  * socket_type - specifies the type of socket connection, either TCP or UDP.
  * debug - enables debug logging for additional output, set to `false` to disable verbose logging.
 
-## Running the XRP Controller
+## Running the XRP Controller Application
+
+
 ### Running The Program With Configuration File Settings
-To run the application using the values as defined in the `config.json` file, simply run this command:
+To run the application using the values as defined in the `config.json` file, simply run this command from the **`~/GitHub/xrp-applications/driver_station`** directory in a terminal window that has the python virtual environment activated:
 
 ```
-$ python xrp_controller
+(xrp-control)$ python xrp_controller
 ```
 The output should be similar to the following:
 
@@ -129,7 +201,7 @@ Specifying one or more XRP devices:
 $ python xrp_controller -x 192.168.1.130,192.168.1.140
 ```
 
-### Running the XRP Controller Application Automatically
+### Running the XRP Controller Application Automatically (Raspberry Pi Only)
 The XRP control application can be set up to run automatically when the Raspberry Pi starts, using the linux systemd service.
 
 An example system service configuration file is provided in the repository and can be used directly if the file paths are all the same in your installation. To configure the service, issue the following commands:
@@ -169,7 +241,7 @@ $ sudo systemctl disable xrp_controller.service
 
 **NOTE: If you disable the service from running automatically, you will likely have to run the initial setup command sequence to re-enable it later**
 
-## Viewing the Log Files
+## Viewing the Log Files (Raspberry Pi Only)
 
 Much of the XRP control application has been set up to use the linux system logger. For Raspberry Pi Bookworm distributions, you can view the log file using the `journalctl` command as follows:
 
