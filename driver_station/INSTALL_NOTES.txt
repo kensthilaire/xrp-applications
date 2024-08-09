@@ -15,7 +15,7 @@ $ git checkout pygame
 $ python -m venv ~/Envs/pygame
 
 # Activate a virtual environment from Git Bash
-$ . /Envs/pygame/Scripts/activate
+$ . ~/Envs/pygame/Scripts/activate
 
 # Install all required python packages for the driver station
 $ pip install -r requirements.txt
