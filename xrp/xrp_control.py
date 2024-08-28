@@ -17,6 +17,9 @@ import uselect as select
 import _thread
 
 from xrp_config import read_config
+
+from xrp_display import XrpDisplay
+
 #
 # Function to retrieve a string representation of the unique hardware ID 
 # of the connected XRP
@@ -77,8 +80,10 @@ event_map = {
     'RT': 'RightTrigger',
     'HX': 'HatX',
     'HY': 'HatY',
-    'LED' : 'LED
+    
+    'LED' : 'LED'
 }
+
 
 #
 # Main control class for the XRP application.
@@ -94,6 +99,16 @@ class XrpControl():
         self.id = get_id()
         print( 'XRP Id: %s' % self.id)
         
+        # attempt to read any defined config for the display
+        self.xrp_display = None
+        oled_config = config.get('oled_display')
+        if oled_config:
+            display_type = oled_config.get('display_type', 'medium')
+            try:
+                self.xrp_display = XrpDisplay(display_type=display_type)
+            except:
+                print('Error initializing XRP Display')
+
         # set up the network based on the specified configuration
         # flash the LED on the pico to indicate that we're connecting to the network
         board.led_blink(2)
@@ -180,6 +195,10 @@ class XrpControl():
                             network_config = sta_if.ifconfig()
                             self.my_ipaddr = network_config[0]
                             print( 'Connected to WIFI, IP Address: %s' % (self.my_ipaddr) )
+                            
+                            if self.xrp_display:
+                                self.xrp_display.print_ln( 'IP: %s' % (self.my_ipaddr) )
+                                
                             break
                         else:
                             # increment the number of attempts, then pause and retry. We have seen the XRP 
@@ -298,6 +317,9 @@ class XrpControl():
             self.process_commands( commands )
     
     def process_commands(self, commands ):
+        #if self.xrp_display:
+        #    self.xrp_display.clear_display()
+            
         for command in commands:
             #print( 'Command: %s' % command )
             tokens = command.split(':')

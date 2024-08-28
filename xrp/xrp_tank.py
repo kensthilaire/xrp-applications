@@ -1,5 +1,7 @@
 from XRPLib.defaults import *
 
+import asyncio
+
 from xrp_control import XrpControl, read_config
 
 # Set of control events that could be sent from the driver station application
@@ -37,6 +39,15 @@ class XrpTank(XrpControl):
     def __init__(self, config):
         super().__init__(config, application='XRP_Tank')
 
+    async def drive_task(self):
+        print( 'Starting Tank Drive Task')
+        while True:
+            # not much to do, as the axis controls set the individual motor effort
+            # directly.
+            
+            # pause to allow other tasks to run
+            await asyncio.sleep_ms(20)
+ 
     #
     # Function processes the Event command, interpreting the event type and 
     # invoking the appropriate robot control behavior specified by the event
@@ -57,5 +68,7 @@ if __name__ == '__main__':
     config = read_config()
 
     # create the instance of the XRP controller and launch the run loop
-    controller = XrpTank( config ).run()
+    controller = XrpTank( config )
+    if controller:
+        asyncio.run(controller.run())
 
