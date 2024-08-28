@@ -40,9 +40,9 @@ right_rear_motor = EncodedMotor.get_default_encoded_motor(index=4)
 #
 # Main control class for the XRP application.
 #
-class XrpMechanum(XrpControl):
+class XrpMecanum(XrpControl):
     def __init__(self, config):
-        super().__init__(config, application='XRP_Mechanum')
+        super().__init__(config, application='XRP_Mecanum')
         
         self.current_twist = 0.0
         self.motor_effort = [0.0, 0.0, 0.0, 0.0]
@@ -56,7 +56,7 @@ class XrpMechanum(XrpControl):
                 print('Error initializing XRP LED Strip')
 
     async def drive_task(self):
-        print( 'Starting Mechanum Drive Task')
+        print( 'Starting Mecanum Drive Task')
         while True:
             # set the effort of each wheel based on the current axis values
             self.motor_effort[0] = self.current_speed - self.current_turn + self.current_twist
@@ -125,7 +125,7 @@ if __name__ == '__main__':
     config = read_config()
 
     # create the instance of the XRP controller and launch the run loop
-    controller = XrpMechanum( config )
+    controller = XrpMecanum( config )
     if controller:
         print( 'Starting Controller Main Loop...')
         asyncio.run(controller.run())
