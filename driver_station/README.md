@@ -89,7 +89,7 @@ $ mkdir -p ~/Envs
 $ python -m venv ~/Envs/xrp-control
 
 # Activate a virtual environment from Git Bash
-$ . ~/Envs/pygame/Scripts/activate
+$ . ~/Envs/xrp-control/Scripts/activate
 
 # Change to the application directory
 $ cd ~/GitHub/xrp-applications/driver_station
